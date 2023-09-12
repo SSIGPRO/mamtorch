@@ -11,9 +11,8 @@ class MAMDenseFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, C_grad):
         A, B, argmax, argmin = ctx.saved_tensors
-        #A_grad, B_grad = mamtorchkernel.mamdense_backward(A, B, C_grad, argmax, argmin)
-        #return A_grad, B_grad
-        return A, B
+        A_grad, B_grad = mamtorchkernel.mamdense_backward(A, B, C_grad, argmax, argmin)
+        return A_grad, B_grad
     
 
 class MAMDense(torch.nn.Module):
