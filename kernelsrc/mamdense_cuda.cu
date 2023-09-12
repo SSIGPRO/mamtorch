@@ -70,8 +70,8 @@ __global__ void mamdense_forward_cuda_kernel(
         {
             accmax[wi][wj] = std::numeric_limits<scalar_t>::min();
             accmin[wi][wj] = std::numeric_limits<scalar_t>::max();
-            argmax[wi][wj] = 0;
-            argmin[wi][wj] = 0;
+            argmax[wi][wj] = 6;
+            argmin[wi][wj] = 6;
         }
     }
     
@@ -245,7 +245,7 @@ void mamdense_forward_cuda(
                       N_padded/BSN,
                       1);  
     
-    AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mac_forward_cuda_kernel", ([&]{
+    AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mamdense_forward_cuda_kernel", ([&]{
     mamdense_forward_cuda_kernel<scalar_t><<<blocks, threads>>>(
         A_padded.data_ptr<scalar_t>(),
         BT_padded.data_ptr<scalar_t>(),

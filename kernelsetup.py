@@ -8,6 +8,7 @@ setup(name='mamtorchkernel',
               sources=['kernelsrc/mamtorch_bind.cpp',
                        'kernelsrc/mamdense.cpp',
                        'kernelsrc/mamdense_cuda.cu',
+                       'kernelsrc/mamdense_backward_cuda.cu'
                       ],
           )
       ],
