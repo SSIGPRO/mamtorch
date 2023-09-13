@@ -25,7 +25,7 @@ class MAMDense(torch.nn.Module):
             self.bias = torch.nn.Parameter(torch.empty(out_features))
         else:
             self.register_parameter('bias', None)
-        #self.reset_parameters()
+        self.reset_parameters()
         
     def reset_parameters(self):
         # Initialize weight and bias here
