@@ -1,5 +1,7 @@
 import torch
 import mamtorchkernel
+import math
+import torch.nn.functional as F
 
 class MAMDenseFunction(torch.autograd.Function):
     @staticmethod
@@ -16,7 +18,7 @@ class MAMDenseFunction(torch.autograd.Function):
     
 
 class MAMDense(torch.nn.Module):
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(self, in_features, out_features, bias=True, beta=False, beta_decay='linear', beta_epochs=0):
         super(MAMDense, self).__init__()
         self.input_features = in_features
         self.state_size = out_features
@@ -25,16 +27,47 @@ class MAMDense(torch.nn.Module):
             self.bias = torch.nn.Parameter(torch.empty(out_features))
         else:
             self.register_parameter('bias', None)
+        if beta:
+            self.beta = 1.0
+        else:
+            self.beta = 0.0
+        self.beta_decay = beta_decay
+        self.beta_epochs = beta_epochs
+        
         self.reset_parameters()
         
     def reset_parameters(self):
         # Initialize weight and bias here
-        torch.nn.init.xavier_uniform_(self.weight)  # You can use a different initialization method
+        torch.nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         if self.bias is not None:
-            torch.nn.init.zeros_(self.bias)
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            torch.nn.init.uniform_(self.bias, -bound, bound)
+            
+    def adjust_beta(self, epoch):
+        assert self.beta_epochs > 0, "Invalid value for beta_epochs. Please use a positive integer."
+
+        if epoch+1 >= self.beta_epochs:
+            self.beta = 0
+            return
+        if self.beta_decay == 'linear':
+            delta_beta =  1/self.beta_epochs
+            self.beta -= delta_beta
+            return
         
     def forward(self, input):
         C = MAMDenseFunction.apply(input, self.weight.T.contiguous())
+        #If self.beta is not 0 MAC output is still computed
+        if self.beta >= 10e-5:
+            D = F.linear(input, self.weight)
+            if self.bias is not None:
+                C += self.bias.view(1, -1)  # Add bias
+                return (1-self.beta)*C + self.beta*D + self.bias.view(1, -1)
+            return (1-self.beta)*C + self.beta*D
+        #No need to compute MAC output
         if self.bias is not None:
             C += self.bias.view(1, -1)  # Add bias
+            return C + self.bias.view(1, -1)
         return C
+        
+                   
