@@ -17,7 +17,6 @@
 #define LPTB ((BSK*BSN)/(RBSM*RBSN)) // loads-per-thread from global memory B
 #define LPTM BSM/RBSM
 #define LPTK BSK/RBSN
-#define WIDTH 4 // width of type float4/double4
 
 /* OPTIMIZATION NOTES 
 * - prefetch reduces performance due to the reduction of active thread for
@@ -70,8 +69,8 @@ __global__ void mamdense_forward_cuda_kernel(
         {
             accmax[wi][wj] = std::numeric_limits<scalar_t>::min();
             accmin[wi][wj] = std::numeric_limits<scalar_t>::max();
-            argmax[wi][wj] = 6;
-            argmin[wi][wj] = 6;
+            argmax[wi][wj] = 0;
+            argmin[wi][wj] = 0;
         }
     }
     
@@ -95,7 +94,7 @@ __global__ void mamdense_forward_cuda_kernel(
             const int j_A = BSK*bk + j_tile;
             const int i_BT = j_tile_off + i_tile;
             const int j_BT = j_A;
-            // load on local memory and un-transpose matrix BT
+            // load on local memory and un-trasnspose matrix BT
             Ablock[j_tile][i_tile] = A[j_A*M + i_A];
             Bblock[i_tile][j_tile] = BT[j_BT*N + i_BT];
         }
@@ -116,13 +115,16 @@ __global__ void mamdense_forward_cuda_kernel(
             // perform operation
             for(int wi = 0; wi < WPTM; ++wi)
             {
+                
                 // register group offset + position in the register group
                 int i_block =  wi*RBSM + i_reg;
                 Areg = Ablock[k][i_block];
+                
                 for(int wj = 0; wj < WPTN; ++wj)
                 {
                     // get weighted inputs and add to the accumulator
-                    scalar_t tmp = Areg * Breg[wj];
+                    scalar_t tmp = Areg * Breg[wj]; 
+                    
                     if(tmp > accmax[wi][wj])
                     {
                         accmax[wi][wj] = tmp;
@@ -133,11 +135,14 @@ __global__ void mamdense_forward_cuda_kernel(
                         accmin[wi][wj] = tmp;
                         argmin[wi][wj] = BSK*bk+k;
                     }
+                    
                 }
             }
+            
         }
         __syncthreads();
     }
+    
     
     // Add together maximum and minimum
     for(int wi = 0; wi < WPTM; ++wi)
@@ -243,7 +248,9 @@ void mamdense_forward_cuda(
                        1);    
     const dim3 blocks(M_padded/BSM,
                       N_padded/BSN,
-                      1);  
+                      1);
+    
+    cudaSetDevice(A_padded.get_device());
     
     AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mamdense_forward_cuda_kernel", ([&]{
     mamdense_forward_cuda_kernel<scalar_t><<<blocks, threads>>>(

@@ -96,6 +96,8 @@ void mamdense_backward_cuda(
                       (N-1)/BS+1,
                       1);  
     
+    cudaSetDevice(A.get_device());
+    
     AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mamdense_backward_cuda_kernel", ([&]{
     mamdense_backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
         A.data_ptr<scalar_t>(),
