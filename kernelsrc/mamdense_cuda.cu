@@ -114,8 +114,7 @@ __global__ void mamdense_forward_cuda_kernel(
             
             // perform operation
             for(int wi = 0; wi < WPTM; ++wi)
-            {
-                
+            {               
                 // register group offset + position in the register group
                 int i_block =  wi*RBSM + i_reg;
                 Areg = Ablock[k][i_block];
@@ -124,25 +123,25 @@ __global__ void mamdense_forward_cuda_kernel(
                 {
                     // get weighted inputs and add to the accumulator
                     scalar_t tmp = Areg * Breg[wj]; 
+                    int arg = BSK*bk+k;
                     
                     if(tmp > accmax[wi][wj])
                     {
                         accmax[wi][wj] = tmp;
-                        argmax[wi][wj] = BSK*bk+k;
+                        argmax[wi][wj] = arg;
                     }
+                    
                     if(tmp < accmin[wi][wj])
                     {
                         accmin[wi][wj] = tmp;
-                        argmin[wi][wj] = BSK*bk+k;
-                    }
-                    
+                        argmin[wi][wj] = arg;
+                    }                    
                 }
             }
             
         }
         __syncthreads();
     }
-    
     
     // Add together maximum and minimum
     for(int wi = 0; wi < WPTM; ++wi)
