@@ -6,8 +6,8 @@
 #include <vector>
 #include <limits>
 
-#define BS 64 // block size 
-#define WPT 8 // work per thread
+#define BS 16 // block size 
+#define WPT 16 // work per thread
 #define RBS (BS/WPT) // reduced block_size
 
 /* OPTIMIZATION NOTES
