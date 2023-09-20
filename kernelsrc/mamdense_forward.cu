@@ -20,10 +20,11 @@
 
 /* OPTIMIZATION NOTES 
 * - prefetch reduces performance due to the reduction of active thread for
-*   each processor
-* - BSM = 128 is approximately the best value
-* - BSK = 16 is good enough; BSK = 32 changes nothing
-* - the use of transposition and padding introduce negligible dela
+*   each processor (avoided)
+* - vectorization of data has not been tested
+* - BSM = 64 is approximately the best value
+* - BSK = 32 is approximately the best value
+* - the use of transposition and padding introduce negligible delay
 */
 
 template <typename scalar_t>
@@ -235,11 +236,9 @@ void mamdense_forward_cuda(
     // generate padded output matrix
     if(M_rest || N_rest)
     {
-        C_padded = torch::empty({N_padded, M_padded}, A.options());
-        Cargmax_padded = torch::empty({N_padded, M_padded}, A.options());
-        Cargmax_padded = Cargmax_padded.to(torch::kInt32);
-        Cargmin_padded = torch::empty({N_padded, M_padded}, A.options());
-        Cargmin_padded = Cargmin_padded.to(torch::kInt32);
+        C_padded = torch::empty({N_padded, M_padded}, C.options());
+        Cargmax_padded = torch::empty({N_padded, M_padded}, Cargmax.options());
+        Cargmin_padded = torch::empty({N_padded, M_padded}, Cargmin.options());
     }   
     
     const dim3 threads(RBSM,

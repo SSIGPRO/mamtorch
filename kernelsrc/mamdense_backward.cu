@@ -11,8 +11,10 @@
 #define RBS (BS/WPT) // reduced block_size
 
 /* OPTIMIZATION NOTES
-* - each threads performs sparse additions to the gradient matrices (atomic add)
-* - each threads is referred to an output block
+* - each thread performs sparse additions to the gradient matrices (atomic add)
+* - each thread evaluates the gradients coming from a specific output block
+* - evaluation time is 2 orders of magnitude smaller than forward: no further
+*   optimizations needed
 */
 
 template <typename scalar_t>
