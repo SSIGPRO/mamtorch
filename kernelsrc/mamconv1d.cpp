@@ -3,6 +3,14 @@
 #include <vector>
 #include <string>
 
+/***
+* IMPLEMENTATION NOTE
+* computational time due to permutation of all inputs and outputs is not
+* negligible.
+* in order to improve speed, it might be useful try a row-major
+* implementation of the conv function.
+***/
+
 void mamconv1d_forward_cuda(
     torch::Tensor X,
     torch::Tensor W,
@@ -161,11 +169,11 @@ std::vector<torch::Tensor> mamconv1d_backward(
     
     // generate output matrix
     // THESE NEED TO BE GENERATED FROM THE INPUT SIZE
-    auto Xgrad_cm = torch::empty({X.size(2), X.size(1), X.size(0)}, X.options());
-    auto Wgrad_cm = torch::empty({W.size(2), W.size(1), W.size(0)}, X.options());
+    auto Xgrad_cm = torch::empty_like(X_cm);
+    auto Wgrad_cm = torch::empty_like(W_cm);
     
     if(X.is_cuda())
-    {/*
+    {
         mamconv1d_backward_cuda(X_cm,
                                 W_cm,
                                 Ygrad_cm,
@@ -173,9 +181,7 @@ std::vector<torch::Tensor> mamconv1d_backward(
                                 Yargmin_cm,
                                 Xgrad_cm,
                                 Wgrad_cm,
-                                stride); */
-        TORCH_CHECK(0, "GPU implementation of mamconv1d_backward"
-                       "has not been implemented.")
+                                stride);
     }
     else
     {
