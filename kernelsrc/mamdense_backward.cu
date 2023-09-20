@@ -37,8 +37,8 @@ __global__ void mamdense_backward_cuda_kernel(
     const int tj = threadIdx.y;
     
     // get row and column on the output matrix
-    const int Ci = (bi*BS + ti)*WPT;
-    const int Cj = (bj*BS + tj)*WPT;
+    const int Ci = bi*BS + ti*WPT;
+    const int Cj = bj*BS + tj*WPT;
     
     // *** EXECUTION ***
     
