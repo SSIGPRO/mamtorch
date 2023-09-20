@@ -5,10 +5,16 @@ setup(name='mamtorchkernel',
       ext_modules=[
           cpp_extension.CUDAExtension(
               name='mamtorchkernel',
-              sources=['kernelsrc/mamtorch_bind.cpp',
+              sources=[# binder
+                       'kernelsrc/mamtorch_bind.cpp',
+                       # mam dense
                        'kernelsrc/mamdense.cpp',
-                       'kernelsrc/mamdense_cuda.cu',
-                       'kernelsrc/mamdense_backward_cuda.cu'
+                       'kernelsrc/mamdense_forward.cu',
+                       'kernelsrc/mamdense_backward.cu',
+                       # mam conv1d
+                       'kernelsrc/mamconv1d.cpp',
+                       'kernelsrc/mamconv1d_forward.cu',
+                       #'kernelsrc/mamconv1d_backward.cu'
                       ],
           )
       ],
