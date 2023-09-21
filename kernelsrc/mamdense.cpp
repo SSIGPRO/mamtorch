@@ -104,7 +104,11 @@ std::vector<torch::Tensor> mamdense_backward(
     
     // Check sizes
     TORCH_CHECK(A.size(1) == B.size(0), "A.size(1) is not "
-                                        "the same as B.size(0).");
+                                        "the same as B.size(0). A is "
+                                        + A.size(0).str() + "x"
+                                        + A.size(1).str() + ". B is: " 
+                                        + B.size(0).str() + "x"
+                                        + B.size(1).str());
     TORCH_CHECK(Cgrad.size(0) == A.size(0), "A.size(0) is not "
                                             "the same as Cgrad.size(0).");
     TORCH_CHECK(Cgrad.size(1) == B.size(1), "B.size(1) is not "
