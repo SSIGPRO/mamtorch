@@ -32,7 +32,11 @@ std::vector<torch::Tensor> mamdense_forward(
     
     // Check sizes
     TORCH_CHECK(A.size(1) == B.size(0), "A.size(1) is not "
-                                        "the same as B.size(0).");
+                                        "the same as B.size(0). A is "
+                                        + A.size(0).str() + "x"
+                                        + A.size(1).str() + ". B is: " 
+                                        + B.size(0).str() + "x"
+                                        + B.size(1).str());
     
     // Check contiguity
     TORCH_CHECK(A.is_contiguous(), "A must be contiguous.");
