@@ -20,8 +20,8 @@ class MAMDenseFunction(torch.autograd.Function):
 class MAMDense(torch.nn.Module):
     def __init__(self, in_features, out_features, bias=True, beta=False, beta_decay='linear', beta_epochs=0):
         super(MAMDense, self).__init__()
-        self.input_features = in_features
-        self.state_size = out_features
+        self.in_features = in_features
+        self.out_features = out_features
         self.weight = torch.nn.Parameter(torch.empty(out_features, in_features))
         if bias:
             self.bias = torch.nn.Parameter(torch.empty(out_features))
@@ -57,17 +57,17 @@ class MAMDense(torch.nn.Module):
         
     def forward(self, input):
         C = MAMDenseFunction.apply(input, self.weight.T.contiguous())
-        #If self.beta is not 0 MAC output is still computed
+        # If self.beta is not 0 MAC output is still computed
         if self.beta >= 10e-5:
             D = F.linear(input, self.weight)
             if self.bias is not None:
-                C += self.bias.view(1, -1)  # Add bias
                 return (1-self.beta)*C + self.beta*D + self.bias.view(1, -1)
             return (1-self.beta)*C + self.beta*D
-        #No need to compute MAC output
+        
+        # No need to compute MAC output
         if self.bias is not None:
-            C += self.bias.view(1, -1)  # Add bias
             return C + self.bias.view(1, -1)
+        
         return C
         
                    
