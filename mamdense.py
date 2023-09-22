@@ -68,7 +68,6 @@ class MAMDense(torch.nn.Module):
         #No need to compute MAC output
         if self.bias is not None:
             C += self.bias.view(1, -1)  # Add bias
-            return C + self.bias.view(1, -1)
         return C
         
                    
