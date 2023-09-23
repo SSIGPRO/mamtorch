@@ -57,17 +57,26 @@ class MAMDense(torch.nn.Module):
             return
         
     def forward(self, input):
-        C = MAMDenseFunction.apply(input, self.weight.T.contiguous())
+        input_flat = input.view(-1, input.size()[-1])
+        C = MAMDenseFunction.apply(input_flat, self.weight.T.contiguous())
+        C_shape = list(input.shape[:-1]) + [self.weight.size(0)] 
         #If self.beta is not 0 MAC output is still computed
         if self.beta >= 10e-5:
             D = F.linear(input, self.weight)
             if self.bias is not None:
                 C += self.bias.view(1, -1)  # Add bias
-                return (1-self.beta)*C + self.beta*D + self.bias.view(1, -1)
-            return (1-self.beta)*C + self.beta*D
+                mam_term = (1-self.beta)*C + self.bias.view(1, -1)
+                mam_term = mam_term.view(C_shape)
+                mac_term = self.beta*D
+                return mam_term + mac_term
+            mam_term = (1-self.beta)*C
+            mam_term = mam_term.view(C_shape)
+            mac_term = self.beta*D
+            return mam_term + mac_term
         #No need to compute MAC output
         if self.bias is not None:
             C += self.bias.view(1, -1)  # Add bias
+            C = C.view(C_shape)
         return C
         
                    
