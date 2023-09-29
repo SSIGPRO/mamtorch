@@ -39,6 +39,11 @@ class MAMConv1d(torch.nn.Module):
         self.beta_decay = beta_decay
         self.beta_epochs = beta_epochs
         
+        self.max_selection_count = None
+        self.min_selection_count = None
+        self.argmax = None
+        self.argmin = None
+        
         self.reset_parameters()
         
     def reset_parameters(self): # CHECK FOR CONV1D PROPER INITIALIZATION
@@ -59,6 +64,30 @@ class MAMConv1d(torch.nn.Module):
             delta_beta =  1/self.beta_epochs
             self.beta -= delta_beta
             return
+        
+    def reset_selection_count(self):
+        self.max_selection_count = torch.zeros_like(self.weight).to(torch.int32)
+        self.min_selection_count = torch.zeros_like(self.weight).to(torch.int32)
+        
+    def update_selection_count(self):
+        # Use the current values of self.argmax and self.argmin to update the selection count
+        if self.argmax is None or self.argmin is None:
+            raise("No argmax or argmin values have been evaluated yet.")
+            
+        if self.max_selection_count is None or self.min_selection_count is None:
+            self.reset_selection_count()
+            
+        num_filters, num_channels, num_elements = self.weight.shape
+        filter_indices = torch.arange(num_filters).repeat(num_channels*num_elements).to(self.weight.device)
+        channel_indices = self.argmax.flatten() % self.weight.shape[-2]
+        element_indices = self.argmax.flatten() // self.weight.shape[-2]
+        self.max_selection_count[filter_indices, channel_indices, element_indices] += 1
+        
+        num_filters, num_channels, num_elements = self.weight.shape
+        filter_indices = torch.arange(num_filters).repeat(num_channels*num_elements).to(self.weight.device)
+        channel_indices = self.argmin.flatten() % self.weight.shape[-2]
+        element_indices = self.argmin.flatten() // self.weight.shape[-2]
+        self.min_selection_count[filter_indices, channel_indices, element_indices] += 1
         
     def forward(self, input):
         # apply padding
