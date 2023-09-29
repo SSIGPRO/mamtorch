@@ -26,7 +26,7 @@ __global__ void mamconv1d_backward_cuda_kernel(
     const int * __restrict__ Yargmin,
     scalar_t * __restrict__ Xgrad,
     scalar_t * __restrict__ Wgrad,
-    int N,
+    int B,
     int C,
     int M,
     int F,
@@ -49,9 +49,9 @@ __global__ void mamconv1d_backward_cuda_kernel(
     
     // *** EXECUTION ***
     
-    if((Y_batch < N) && (Y_channel < C) && (Y_element < R))
+    if((Y_batch < B) && (Y_channel < C) && (Y_element < R))
     {
-        const int batch_loops = WPT < N-Y_batch ? WPT : N-Y_batch;
+        const int batch_loops = WPT < B-Y_batch ? WPT : B-Y_batch;
         for(int batch = 0; batch < batch_loops; ++batch)
         {
             const int channel_loops = WPT < F-Y_channel ? WPT : F-Y_channel;
@@ -61,8 +61,8 @@ __global__ void mamconv1d_backward_cuda_kernel(
                 for(int element = 0; element < element_loops; ++element)
                 {
                     int index = Y_batch+batch
-                              + (Y_channel+channel)*N
-                              + (Y_element+element)*N*F;
+                              + (Y_channel+channel)*B
+                              + (Y_element+element)*B*F;
                     scalar_t Ygrad_val = Ygrad[index];
                     int kmax = Yargmax[index];
                     int kmin = Yargmin[index];
@@ -78,8 +78,8 @@ __global__ void mamconv1d_backward_cuda_kernel(
                     
                     // backprop through max
                     X_index = Y_batch+batch
-                            + kmax_channel*N
-                            + (kmax_element+(Y_element+element)*stride)*N*C;
+                            + kmax_channel*B
+                            + (kmax_element+(Y_element+element)*stride)*B*C;
                     W_index = Y_channel+channel
                             + kmax_channel*F
                             + kmax_element*F*C;
@@ -90,8 +90,8 @@ __global__ void mamconv1d_backward_cuda_kernel(
                     
                     // backprop through min
                     X_index = Y_batch+batch
-                            + kmin_channel*N
-                            + (kmin_element+(Y_element+element)*stride)*N*C;
+                            + kmin_channel*B
+                            + (kmin_element+(Y_element+element)*stride)*B*C;
                     W_index = Y_channel+channel
                             + kmin_channel*F
                             + kmin_element*F*C;
@@ -115,7 +115,7 @@ void mamconv1d_backward_cuda(
     torch::Tensor Wgrad,
     int stride)
 {    
-    const auto N = X.size(2);
+    const auto B = X.size(2);
     const auto C = X.size(1);
     const auto M = X.size(0);
     const auto F = W.size(2);
@@ -131,7 +131,7 @@ void mamconv1d_backward_cuda(
                        RBS);    
     const dim3 blocks((R-1)/BS+1,
                       (F-1)/BS+1,
-                      (N-1)/BS+1);  
+                      (B-1)/BS+1);  
     
     cudaSetDevice(X.get_device());
     
@@ -145,6 +145,6 @@ void mamconv1d_backward_cuda(
         Yargmin.data_ptr<int>(),
         Xgrad.data_ptr<scalar_t>(),
         Wgrad.data_ptr<scalar_t>(),
-        N, C, M, F, Mf, R, stride);
+        B, C, M, F, Mf, R, stride);
     }));
 }

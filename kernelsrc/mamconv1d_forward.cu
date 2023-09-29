@@ -6,10 +6,10 @@
 #include <vector>
 #include <limits>
 
-#define BS 64 // block size along N or F
+#define BS 64 // block size along B or F
 #define BSK 32 // block size along K
-#define WPT 4 // work per thread along N or F
-#define RBS (BS/WPT) // reduced block_size along N or F
+#define WPT 4 // work per thread along B or F
+#define RBS (BS/WPT) // reduced block_size along B or F
 #define LPT ((BS*BSK)/(RBS*RBS)) // loads-per-thread from global memory
 
 /* OPTIMIZATION NOTES 
@@ -28,7 +28,7 @@ __global__ void mamconv1d_forward_cuda_kernel(
     scalar_t * __restrict__ Y,
     int * __restrict__ Yargmax,
     int * __restrict__ Yargmin,
-    int N,
+    int B,
     int C,
     int M,
     int F,
@@ -88,8 +88,8 @@ __global__ void mamconv1d_forward_cuda_kernel(
             const int Wblock_i = by*BS + block_i;
             const int Wblock_j = bk*BSK + block_j;
             // load on local memory
-            Xblock[block_j][block_i] = X[Xblock_i + Xblock_j*N
-                                       + (filter_off_i+filter_i)*N*C];
+            Xblock[block_j][block_i] = X[Xblock_i + Xblock_j*B
+                                       + (filter_off_i+filter_i)*B*C];
             Wblock[block_i][block_j] = W[Wblock_i + Wblock_j*F];
         }
         
@@ -117,8 +117,9 @@ __global__ void mamconv1d_forward_cuda_kernel(
                 {
                     // get weighted inputs and add to the accumulator
                     scalar_t tmp = Xreg * Wreg[wj]; 
-                    int arg = BSK*bk+k - (BSK*bk+k)/C*Cpad;
-                    
+                    //int arg = BSK*bk+k - (BSK*bk+k)/C*Cpad;
+                    accmax[wi][wj] += tmp;
+                    /*
                     if(tmp > accmax[wi][wj])
                     {
                         accmax[wi][wj] = tmp;
@@ -129,7 +130,7 @@ __global__ void mamconv1d_forward_cuda_kernel(
                     {
                         accmin[wi][wj] = tmp;
                         argmin[wi][wj] = arg;
-                    }                    
+                    } */                   
                 }
             }
             
@@ -138,13 +139,14 @@ __global__ void mamconv1d_forward_cuda_kernel(
     }
     
     // Add together maximum and minimum
+    /*
     for(int wi = 0; wi < WPT; ++wi)
     {
         for(int wj = 0; wj < WPT; ++wj)
         {
             accmax[wi][wj] += accmin[wi][wj];
         }
-    }
+    }*/
     
     // *** STORE THE OUTPUTS ***
     
@@ -157,9 +159,9 @@ __global__ void mamconv1d_forward_cuda_kernel(
         {
             const int j_out = by*BS + wj*RBS + tj;
             
-            Y[k_out*N*F + j_out*N + i_out] = accmax[wi][wj];
-            Yargmax[k_out*N*F + j_out*N + i_out] = argmax[wi][wj];
-            Yargmin[k_out*N*F + j_out*N + i_out] = argmin[wi][wj];
+            Y[k_out*B*F + j_out*B + i_out] = accmax[wi][wj];
+            //Yargmax[k_out*B*F + j_out*B + i_out] = argmax[wi][wj];
+            //Yargmin[k_out*B*F + j_out*B + i_out] = argmin[wi][wj];
         }
     }
 }
@@ -172,7 +174,7 @@ void mamconv1d_forward_cuda(
     torch::Tensor Yargmin,
     int stride)
 {    
-    const auto N = X.size(2);
+    const auto B = X.size(2);
     const auto C = X.size(1);
     const auto M = X.size(0);
     const auto F = W.size(2);
@@ -180,11 +182,11 @@ void mamconv1d_forward_cuda(
     const auto R = Y.size(0);
     
     int Fpad = 0;
-    int Npad = 0;
+    int Bpad = 0;
     int Cpad = 0;
     
     if(F%BS) Fpad = BS-F%BS;
-    if(N%BS) Npad = BS-N%BS;
+    if(B%BS) Bpad = BS-B%BS;
     if(C%BS) Cpad = BSK-C%BSK;
     
     auto Wpad = W;
@@ -197,10 +199,10 @@ void mamconv1d_forward_cuda(
                           "replicate").squeeze();
     }
     
-    if(Npad || Cpad)
+    if(Bpad || Cpad)
     { 
         Xpad = torch::pad(X.unsqueeze(0),
-                          torch::IntList{0, Npad, 0, Cpad},
+                          torch::IntList{0, Bpad, 0, Cpad},
                           "replicate").squeeze();
     }
     
@@ -210,17 +212,17 @@ void mamconv1d_forward_cuda(
     auto Yargmax_pad = Yargmax;
     auto Yargmin_pad = Yargmin;
     
-    if(Fpad || Npad)
+    if(Fpad || Bpad)
     {
-        Ypad = torch::empty({R, F+Fpad, N+Npad}, Y.options());
-        Yargmax_pad = torch::empty({R, F+Fpad, N+Npad}, Yargmax.options());
-        Yargmin_pad = torch::empty({R, F+Fpad, N+Npad}, Yargmin.options());
+        Ypad = torch::empty({R, F+Fpad, B+Bpad}, Y.options());
+        Yargmax_pad = torch::empty({R, F+Fpad, B+Bpad}, Yargmax.options());
+        Yargmin_pad = torch::empty({R, F+Fpad, B+Bpad}, Yargmin.options());
     }
         
     const dim3 threads(RBS,
                        RBS,
                        1);    
-    const dim3 blocks((N+Npad)/BS,
+    const dim3 blocks((B+Bpad)/BS,
                       (F+Fpad)/BS,
                       R);
     
@@ -234,13 +236,13 @@ void mamconv1d_forward_cuda(
         Ypad.data_ptr<scalar_t>(),
         Yargmax_pad.data_ptr<int>(),
         Yargmin_pad.data_ptr<int>(),
-        (N+Npad), (C+Cpad), M, (F+Fpad), Mf, stride, Cpad);
+        (B+Bpad), (C+Cpad), M, (F+Fpad), Mf, stride, Cpad);
     }));
     
-    if(Fpad || Npad)
+    if(Fpad || Bpad)
     {
-        Y.copy_(Ypad.slice(1, 0, F).slice(2, 0, N));
-        Yargmax.copy_(Yargmax_pad.slice(1, 0, F).slice(2, 0, N));
-        Yargmin.copy_(Yargmin_pad.slice(1, 0, F).slice(2, 0, N));
+        Y.copy_(Ypad.slice(1, 0, F).slice(2, 0, B));
+        Yargmax.copy_(Yargmax_pad.slice(1, 0, F).slice(2, 0, B));
+        Yargmin.copy_(Yargmin_pad.slice(1, 0, F).slice(2, 0, B));
     }
 }
