@@ -72,15 +72,13 @@ class MAMDense(torch.nn.Module):
         if self.max_selection_count is None or self.min_selection_count is None:
             self.reset_selection_count()
             
-        num_rows, num_cols = self.argmax.shape
-        col_indices = torch.arange(num_cols).repeat(num_rows).to(self.argmax.device)
-        coordinates = torch.row_stack((col_indices, self.argmax.flatten()))
-        self.max_selection_count[coordinates[0], coordinates[1]] += 1
+        num_rows, num_cols = self.weight.shape
+        col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
+        self.max_selection_count[col_indices, self.argmax.flatten()] += 1
         
-        num_rows, num_cols = self.argmin.shape
-        col_indices = torch.arange(num_cols).repeat(num_rows).to(self.argmin.device)
-        coordinates = torch.row_stack((col_indices, self.argmin.flatten()))
-        self.min_selection_count[coordinates[0], coordinates[1]] += 1
+        num_rows, num_cols = self.weight.shape
+        col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
+        self.max_selection_count[col_indices, self.argmin.flatten()] += 1
         
     def forward(self, input):
         C, argmax, argmin = MAMDenseFunction.apply(input, self.weight.T.contiguous())
