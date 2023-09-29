@@ -1,0 +1,4 @@
+.ipynb_checkpoints/
+build/
+mamtorch.egg-info/
+mamtorch/mamtorch.egg-info/
