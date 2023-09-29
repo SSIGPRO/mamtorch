@@ -20,11 +20,12 @@ class MAMDenseFunction(torch.autograd.Function):
 class MAMDense(torch.nn.Module):
     def __init__(self, in_features, out_features, bias=True, beta=False, beta_decay='linear', beta_epochs=0):
         super(MAMDense, self).__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.weight = torch.nn.Parameter(torch.empty(out_features, in_features))
+        factory_kwargs = {}
+        self.input_features = in_features
+        self.state_size = out_features
+        self.weight = torch.nn.Parameter(torch.empty(out_features, in_features), **factory_kwargs)
         if bias:
-            self.bias = torch.nn.Parameter(torch.empty(out_features))
+            self.bias = torch.nn.Parameter(torch.empty(out_features), **factory_kwargs)
         else:
             self.register_parameter('bias', None)
         if beta:
@@ -72,31 +73,44 @@ class MAMDense(torch.nn.Module):
         if self.max_selection_count is None or self.min_selection_count is None:
             self.reset_selection_count()
             
-        num_rows, num_cols = self.weight.shape
+        num_rows, num_cols = self.argmax.shape
         col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
         self.max_selection_count[col_indices, self.argmax.flatten()] += 1
         
-        num_rows, num_cols = self.weight.shape
+        num_rows, num_cols = self.argmin.shape
         col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
         self.max_selection_count[col_indices, self.argmin.flatten()] += 1
         
     def forward(self, input):
-        C, argmax, argmin = MAMDenseFunction.apply(input, self.weight.T.contiguous())
-        # Save argmax and argmin for external access
+        # flatten input to 2 dimensions
+        input_flat = input.view(-1, input.size()[-1])
+        
+        # apply mam
+        C, argmax, argmin = MAMDenseFunction.apply(input_flat, self.weight.T.contiguous())
+        
+        # store argmax and argmin for external usage
         self.argmax = argmax
         self.argmin = argmin
         
-        # If self.beta is not 0 MAC output is still computed
+        # get output shape
+        C_shape = list(input.shape[:-1]) + [self.weight.size(0)] 
+        
+        #If self.beta is not 0 MAC output is still computed
         if self.beta >= 10e-5:
             D = F.linear(input, self.weight)
             if self.bias is not None:
-                return (1-self.beta)*C + self.beta*D + self.bias.view(1, -1)
-            return (1-self.beta)*C + self.beta*D
-        
-        # No need to compute MAC output
+                mam_term = (1-self.beta)*C + self.bias.view(1, -1)
+                mam_term = mam_term.view(C_shape)
+                mac_term = self.beta*D
+                return mam_term + mac_term
+            mam_term = (1-self.beta)*C
+            mam_term = mam_term.view(C_shape)
+            mac_term = self.beta*D
+            return mam_term + mac_term
+        #No need to compute MAC output
         if self.bias is not None:
-            return C + self.bias.view(1, -1)
-        
+            C += self.bias.view(1, -1)  # Add bias
+            C = C.view(C_shape)
         return C
         
                    
