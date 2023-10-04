@@ -117,9 +117,8 @@ __global__ void mamconv1d_forward_cuda_kernel(
                 {
                     // get weighted inputs and add to the accumulator
                     scalar_t tmp = Xreg * Wreg[wj]; 
-                    //int arg = BSK*bk+k - (BSK*bk+k)/C*Cpad;
-                    accmax[wi][wj] += tmp;
-                    /*
+                    int arg = BSK*bk+k - (BSK*bk+k)/C*Cpad;
+                    
                     if(tmp > accmax[wi][wj])
                     {
                         accmax[wi][wj] = tmp;
@@ -130,7 +129,7 @@ __global__ void mamconv1d_forward_cuda_kernel(
                     {
                         accmin[wi][wj] = tmp;
                         argmin[wi][wj] = arg;
-                    } */                   
+                    }                 
                 }
             }
             
@@ -139,14 +138,14 @@ __global__ void mamconv1d_forward_cuda_kernel(
     }
     
     // Add together maximum and minimum
-    /*
+    
     for(int wi = 0; wi < WPT; ++wi)
     {
         for(int wj = 0; wj < WPT; ++wj)
         {
             accmax[wi][wj] += accmin[wi][wj];
         }
-    }*/
+    }
     
     // *** STORE THE OUTPUTS ***
     
@@ -160,8 +159,8 @@ __global__ void mamconv1d_forward_cuda_kernel(
             const int j_out = by*BS + wj*RBS + tj;
             
             Y[k_out*B*F + j_out*B + i_out] = accmax[wi][wj];
-            //Yargmax[k_out*B*F + j_out*B + i_out] = argmax[wi][wj];
-            //Yargmin[k_out*B*F + j_out*B + i_out] = argmin[wi][wj];
+            Yargmax[k_out*B*F + j_out*B + i_out] = argmax[wi][wj];
+            Yargmin[k_out*B*F + j_out*B + i_out] = argmin[wi][wj];
         }
     }
 }
