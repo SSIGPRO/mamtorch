@@ -34,6 +34,9 @@ std::vector<torch::Tensor> mamconv1d_forward(
     torch::Tensor W,
     int stride)
 {    
+    // Check stride
+    TORCH_CHECK(stride > 0, "Stride value must be positive!");
+    
     // Check devices
     torch::Device Xdevice = X.device();
     torch::Device Wdevice = W.device();
