@@ -15,7 +15,11 @@ setup(name='mamtorchkernel',
                        # mam conv1d
                        'kernelsrc/mamconv1d.cpp',
                        'kernelsrc/mamconv1d_forward.cu',
-                       'kernelsrc/mamconv1d_backward.cu'
+                       'kernelsrc/mamconv1d_backward.cu',
+                       # mam conv2d
+                       'kernelsrc/mamconv2d.cpp',
+                       'kernelsrc/mamconv2d_forward.cu',
+                       'kernelsrc/mamconv2d_backward.cu',
                       ],
           )
       ],
