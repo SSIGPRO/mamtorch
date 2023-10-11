@@ -90,7 +90,7 @@ std::vector<torch::Tensor> mamconv2d_forward(
     }
     else
     {
-        TORCH_CHECK(0, "CPU implementation of mamconv2d_forward"
+        TORCH_CHECK(0, "CPU implementation of mamconv2d_forward "
                        "has not been implemented.")
     }
     
@@ -209,7 +209,7 @@ std::vector<torch::Tensor> mamconv2d_backward(
     }
     else
     {
-        TORCH_CHECK(0, "CPU implementation of mamconv2d_backward"
+        TORCH_CHECK(0, "CPU implementation of mamconv2d_backward "
                        "has not been implemented.")
     }
     

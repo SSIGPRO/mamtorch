@@ -47,8 +47,8 @@ __global__ void mamconv2d_forward_cuda_kernel(
     const int ti = threadIdx.x;
     const int tj = threadIdx.y;
     
-    const int filter_off_i = bz%Mf*hstride;
-    const int filter_off_j = bz/Mf*wstride;
+    const int filter_off_i = bz%Mo*hstride;
+    const int filter_off_j = bz/Mo*wstride;
     
     // *** EXECUTION INITIALIZATION ***
     
