@@ -107,6 +107,9 @@ class MAMConv2d(torch.nn.Module):
         self.min_selection_count[filter_indices, channel_indices, element_indices_i, element_indices_j] += 1
         
     def forward(self, input):
+        
+        X = input
+        
         # apply padding
         if self.padding_mode == 'zeros':
             pad_mode = 'constant'
@@ -130,8 +133,10 @@ class MAMConv2d(torch.nn.Module):
             else:
                 raise("Padding value must be equal or greater than 0.")
         elif self.padding == 'same':
-            pad_total_w = self.weight.size(0)-1
-            pad_total_h = self.weight.size(1)-1
+            if self.hstride != 1 or self.wstride != 1:
+                raise "Cannot apply 'same' padding with stride > 1."
+            pad_total_w = self.weight.size(3)-1
+            pad_total_h = self.weight.size(2)-1
             padl = pad_total_w//2
             padr = pad_total_w-padl
             padt = pad_total_h//2
@@ -142,11 +147,11 @@ class MAMConv2d(torch.nn.Module):
         else:
             raise("Invalid padding value.")
         
-        Y, argmax, argmin = MAMConv2dFunction.apply(input, 
+        Y, argmax, argmin = MAMConv2dFunction.apply(X, 
                                                     self.weight.contiguous(), 
                                                     torch.tensor(self.hstride), 
                                                     torch.tensor(self.wstride))
-        Y, argmax, argmin = MAMConv2dFunction.apply(input, 
+        Y, argmax, argmin = MAMConv2dFunction.apply(X, 
                                                     self.weight.contiguous(), 
                                                     torch.tensor(self.hstride), 
                                                     torch.tensor(self.wstride))
@@ -157,7 +162,7 @@ class MAMConv2d(torch.nn.Module):
         
         # If self.beta is not 0 MAC output is still computed
         if self.beta >= 10e-5:
-            Yb = F.conv2d(input, self.weight, stride=self.stride)
+            Yb = F.conv2d(X, self.weight, stride=self.stride)
             if self.bias is not None:
                 return (1-self.beta)*Y + self.beta*Yb + self.bias[None, :, None, None]
             return (1-self.beta)*Y + self.beta*Yb

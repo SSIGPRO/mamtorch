@@ -111,7 +111,7 @@ class MAMConv1d(torch.nn.Module):
             else:
                 raise("Padding value must be equal or greater than 0.")
         elif self.padding == 'same':
-            pad_total = self.weight.size(0)-1
+            pad_total = self.weight.size(2)-1
             padl = pad_total//2
             padr = pad_total-padl
             X = torch.nn.functional.pad(input, (padl, padr), mode=pad_mode)
@@ -120,7 +120,7 @@ class MAMConv1d(torch.nn.Module):
         else:
             raise("Invalid padding value.")
         
-        Y, argmax, argmin = MAMConv1dFunction.apply(input, self.weight.contiguous(), torch.tensor(self.stride))
+        Y, argmax, argmin = MAMConv1dFunction.apply(X, self.weight.contiguous(), torch.tensor(self.stride))
         
         # Save argmax and argmin for external use
         self.argmax = argmax
@@ -128,7 +128,7 @@ class MAMConv1d(torch.nn.Module):
         
         # If self.beta is not 0 MAC output is still computed
         if self.beta >= 10e-5:
-            Yb = F.conv1d(input, self.weight, stride=self.stride)
+            Yb = F.conv1d(X, self.weight, stride=self.stride)
             if self.bias is not None:
                 return (1-self.beta)*Y + self.beta*Yb + self.bias[None, :, None]
             return (1-self.beta)*Y + self.beta*Yb
