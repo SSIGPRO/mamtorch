@@ -56,7 +56,7 @@ __global__ void mamconv2d_backward_cuda_kernel(
     
     // *** EXECUTION ***
     
-    if((Y_batch < B) && (Y_channel < C) && (Y_element < Mo*No))
+    if((Y_batch < B) && (Y_channel < F) && (Y_element < Mo*No))
     {
         const int batch_loops = WPT < B-Y_batch ? WPT : B-Y_batch;
         for(int batch = 0; batch < batch_loops; ++batch)
@@ -78,12 +78,12 @@ __global__ void mamconv2d_backward_cuda_kernel(
                     int kmin = Yargmin[index];
                     int kmax_channel = kmax % C;
                     int kmax_element = kmax / C;
-                    int kmax_element_j = kmax_element % Mo;
-                    int kmax_element_i = kmax_element / Mo;
+                    int kmax_element_j = kmax_element % Mf;
+                    int kmax_element_i = kmax_element / Mf;
                     int kmin_channel = kmin % C;
                     int kmin_element = kmin / C;
-                    int kmin_element_j = kmin_element % Mo;
-                    int kmin_element_i = kmin_element / Mo;
+                    int kmin_element_j = kmin_element % Mf;
+                    int kmin_element_i = kmin_element / Mf;
                     
                     scalar_t X_val;
                     scalar_t W_val;
