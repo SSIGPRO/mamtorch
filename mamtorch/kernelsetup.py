@@ -2,7 +2,7 @@ from setuptools import setup, Extension
 from torch.utils import cpp_extension
 
 setup(name='mamtorchkernel',
-      version='0.0.1',
+      version='0.0.3',
       ext_modules=[
           cpp_extension.CUDAExtension(
               name='mamtorchkernel',
