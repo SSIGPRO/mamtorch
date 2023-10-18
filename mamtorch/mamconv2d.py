@@ -151,10 +151,6 @@ class MAMConv2d(torch.nn.Module):
                                                     self.weight.contiguous(), 
                                                     torch.tensor(self.hstride), 
                                                     torch.tensor(self.wstride))
-        Y, argmax, argmin = MAMConv2dFunction.apply(X, 
-                                                    self.weight.contiguous(), 
-                                                    torch.tensor(self.hstride), 
-                                                    torch.tensor(self.wstride))
         
         # Save argmax and argmin for external use
         self.argmax = argmax
