@@ -60,6 +60,12 @@ class MAMDense(torch.nn.Module):
             delta_beta =  1/self.beta_epochs
             self.beta -= delta_beta
             return
+        if self.beta_decay == 'descending-parabola':
+            self.beta = 1 - ((epoch+1)/self.beta_epochs)**2
+            return
+        if self.beta_decay == 'ascending-parabola':
+            self.beta = 1 + (1/(self.beta_epochs**2)*((epoch+1)**2)) - ((2/self.beta_epochs)*(epoch+1))
+            return
         
     def reset_selection_count(self):
         self.max_selection_count = torch.zeros_like(self.weight).to(torch.int32)
