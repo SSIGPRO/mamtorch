@@ -18,7 +18,7 @@ class MAMConv1dFunction(torch.autograd.Function):
     
 
 class MAMConv1d(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, bias=True, stride=1, padding=0, padding_mode='zeros', beta=False, beta_decay='linear', beta_epochs=0):
+    def __init__(self, in_channels, out_channels, kernel_size, bias=True, stride=1, padding=0, padding_mode='zeros', beta=False, beta_decay='linear', beta_epochs=1):
         super(MAMConv1d, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -26,6 +26,8 @@ class MAMConv1d(torch.nn.Module):
         self.stride = stride
         self.padding = padding
         self.padding_mode = padding_mode
+        self.beta_decay = beta_decay
+        self.beta_epochs = beta_epochs
         
         self.weight = torch.nn.Parameter(torch.empty(out_channels, in_channels, kernel_size))
         if bias:
@@ -34,10 +36,9 @@ class MAMConv1d(torch.nn.Module):
             self.register_parameter('bias', None)
         if beta:
             self.beta = 1.0
+            self.adjust_beta(0)
         else:
             self.beta = 0.0
-        self.beta_decay = beta_decay
-        self.beta_epochs = beta_epochs
         
         self.max_selection_count = None
         self.min_selection_count = None
@@ -55,7 +56,8 @@ class MAMConv1d(torch.nn.Module):
             torch.nn.init.uniform_(self.bias, -bound, bound)
             
     def adjust_beta(self, epoch):
-        assert self.beta_epochs > 0, "Invalid value for beta_epochs. Please use a positive integer."
+        if self.beta_epochs <= 0:
+            raise Exception("Invalid value for beta_epochs. Please use a positive integer.")
 
         if epoch+1 >= self.beta_epochs:
             self.beta = 0

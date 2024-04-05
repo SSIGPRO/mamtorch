@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from setuptools import setup, Extension
 from torch.utils import cpp_extension
 

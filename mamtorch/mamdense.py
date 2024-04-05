@@ -18,22 +18,24 @@ class MAMDenseFunction(torch.autograd.Function):
     
 
 class MAMDense(torch.nn.Module):
-    def __init__(self, in_features, out_features, bias=True, beta=False, beta_decay='linear', beta_epochs=0):
+    def __init__(self, in_features, out_features, bias=True, beta=False, beta_decay='linear', beta_epochs=1):
         super(MAMDense, self).__init__()
         factory_kwargs = {}
         self.input_features = in_features
         self.state_size = out_features
         self.weight = torch.nn.Parameter(torch.empty(out_features, in_features), **factory_kwargs)
+        self.beta_decay = beta_decay
+        self.beta_epochs = beta_epochs
+        
         if bias:
             self.bias = torch.nn.Parameter(torch.empty(out_features), **factory_kwargs)
         else:
             self.register_parameter('bias', None)
         if beta:
             self.beta = 1.0
+            self.adjust_beta(0)
         else:
             self.beta = 0.0
-        self.beta_decay = beta_decay
-        self.beta_epochs = beta_epochs
         
         self.max_selection_count = None
         self.min_selection_count = None
@@ -51,7 +53,8 @@ class MAMDense(torch.nn.Module):
             torch.nn.init.uniform_(self.bias, -bound, bound)
             
     def adjust_beta(self, epoch):
-        assert self.beta_epochs > 0, "Invalid value for beta_epochs. Please use a positive integer."
+        if self.beta_epochs <= 0:
+            raise Exception("Invalid value for beta_epochs. Please use a positive integer.")
 
         if epoch+1 >= self.beta_epochs:
             self.beta = 0
