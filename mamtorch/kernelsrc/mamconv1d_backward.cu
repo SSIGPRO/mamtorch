@@ -134,7 +134,7 @@ void mamconv1d_backward_cuda(
                       (B-1)/BS+1);  
     
     cudaSetDevice(X.get_device());
-    
+    /*
     AT_DISPATCH_FLOATING_TYPES(X.scalar_type(),
                                "mamconv1d_backward_cuda_kernel", ([&]{
     mamconv1d_backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
@@ -147,4 +147,15 @@ void mamconv1d_backward_cuda(
         Wgrad.data_ptr<scalar_t>(),
         B, C, M, F, Mf, R, stride);
     }));
+    */
+    
+    mamconv1d_backward_cuda_kernel<float><<<blocks, threads>>>(
+        X.data_ptr<float>(),
+        W.data_ptr<float>(),
+        Ygrad.data_ptr<float>(),
+        Yargmax.data_ptr<int>(),
+        Yargmin.data_ptr<int>(),
+        Xgrad.data_ptr<float>(),
+        Wgrad.data_ptr<float>(),
+        B, C, M, F, Mf, R, stride);
 }

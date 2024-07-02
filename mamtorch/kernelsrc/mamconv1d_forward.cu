@@ -227,6 +227,7 @@ void mamconv1d_forward_cuda(
     
     cudaSetDevice(X.get_device());
     
+    /*
     AT_DISPATCH_FLOATING_TYPES(X.scalar_type(),
                                "mamconv1d_forward_cuda_kernel", ([&]{
     mamconv1d_forward_cuda_kernel<scalar_t><<<blocks, threads>>>(
@@ -237,6 +238,15 @@ void mamconv1d_forward_cuda(
         Yargmin_pad.data_ptr<int>(),
         (B+Bpad), (C+Cpad), M, (F+Fpad), Mf, stride, Cpad);
     }));
+    */
+    
+    mamconv1d_forward_cuda_kernel<float><<<blocks, threads>>>(
+        Xpad.data_ptr<float>(),
+        Wpad.data_ptr<float>(),
+        Ypad.data_ptr<float>(),
+        Yargmax_pad.data_ptr<int>(),
+        Yargmin_pad.data_ptr<int>(),
+        (B+Bpad), (C+Cpad), M, (F+Fpad), Mf, stride, Cpad);
     
     if(Fpad || Bpad)
     {

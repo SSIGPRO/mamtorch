@@ -250,6 +250,7 @@ void mamdense_forward_cuda(
     
     cudaSetDevice(A_padded.get_device());
     
+    /*
     AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mamdense_forward_cuda_kernel", ([&]{
     mamdense_forward_cuda_kernel<scalar_t><<<blocks, threads>>>(
         A_padded.data_ptr<scalar_t>(),
@@ -259,6 +260,15 @@ void mamdense_forward_cuda(
         Cargmin_padded.data_ptr<int>(),
         M_padded, K_padded, N_padded);
     }));
+    */
+    
+    mamdense_forward_cuda_kernel<float><<<blocks, threads>>>(
+        A_padded.data_ptr<float>(),
+        BT_padded.data_ptr<float>(),
+        C_padded.data_ptr<float>(),
+        Cargmax_padded.data_ptr<int>(),
+        Cargmin_padded.data_ptr<int>(),
+        M_padded, K_padded, N_padded);
     
     if(M_rest || N_rest)
     {

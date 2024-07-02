@@ -100,6 +100,7 @@ void mamdense_backward_cuda(
     
     cudaSetDevice(A.get_device());
     
+    /*
     AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mamdense_backward_cuda_kernel", ([&]{
     mamdense_backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
         A.data_ptr<scalar_t>(),
@@ -111,4 +112,15 @@ void mamdense_backward_cuda(
         Bgrad.data_ptr<scalar_t>(),
         M, K, N);
     }));
+    */
+    
+    mamdense_backward_cuda_kernel<float><<<blocks, threads>>>(
+        A.data_ptr<float>(),
+        B.data_ptr<float>(),
+        Cgrad.data_ptr<float>(),
+        Cargmax.data_ptr<int>(),
+        Cargmin.data_ptr<int>(),
+        Agrad.data_ptr<float>(),
+        Bgrad.data_ptr<float>(),
+        M, K, N);
 }
