@@ -36,7 +36,6 @@ class MAMConv1d(torch.nn.Module):
             self.register_parameter('bias', None)
         if beta:
             self.beta = 1.0
-            self.adjust_beta(0)
         else:
             self.beta = 0.0
         
@@ -59,12 +58,17 @@ class MAMConv1d(torch.nn.Module):
         if self.beta_epochs <= 0:
             raise Exception("Invalid value for beta_epochs. Please use a positive integer.")
 
-        if epoch+1 >= self.beta_epochs:
+        if epoch >= self.beta_epochs:
             self.beta = 0
             return
         if self.beta_decay == 'linear':
-            delta_beta =  1/self.beta_epochs
-            self.beta -= delta_beta
+            self.beta = 1 - epoch/self.beta_epochs
+            return
+        if self.beta_decay == 'descending-parabola':
+            self.beta = 1 - (epoch/self.beta_epochs)**2
+            return
+        if self.beta_decay == 'ascending-parabola':
+            self.beta = 1 + (1/(self.beta_epochs**2)*(epoch**2)) - ((2/self.beta_epochs)*epoch)
             return
         
     def reset_selection_count(self):

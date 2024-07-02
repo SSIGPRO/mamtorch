@@ -40,7 +40,6 @@ class MAMConv2d(torch.nn.Module):
             self.register_parameter('bias', None)
         if beta:
             self.beta = 1.0
-            self.adjust_beta(0)
         else:
             self.beta = 0.0
         
@@ -67,29 +66,21 @@ class MAMConv2d(torch.nn.Module):
             torch.nn.init.uniform_(self.bias, -bound, bound)
             
     def adjust_beta(self, epoch):
-        if self.beta_epochs < 0:
+        if self.beta_epochs <= 0:
             raise Exception("Invalid value for beta_epochs. Please use a positive integer.")
-        
-        def linear_decay(x, T):
-            if x > T:
-                return 0.0
-            return -x/T+1
-        
-        def square_wave(x, T, slope):
-            if x%T < T//2:
-                return 1.0
-            return 0.0
-            
-        def sawtooth_wave(x, T, pause):
-            x_loc = x%T
-            return linear_decay(x_loc, T-pause)
-        
+
+        if epoch >= self.beta_epochs:
+            self.beta = 0
+            return
         if self.beta_decay == 'linear':
-            self.beta = linear_decay(epoch, self.beta_epochs)
-        elif self.beta_decay == "intermittent":
-            self.beta = square_wave(epoch, self.beta_epochs)
-        elif self.beta_decay == "linear-intermittent":
-            self.beta = sawtooth_wave(epoch, self.beta_epochs, self.beta_epochs//2)
+            self.beta = 1 - epoch/self.beta_epochs
+            return
+        if self.beta_decay == 'descending-parabola':
+            self.beta = 1 - (epoch/self.beta_epochs)**2
+            return
+        if self.beta_decay == 'ascending-parabola':
+            self.beta = 1 + (1/(self.beta_epochs**2)*(epoch**2)) - ((2/self.beta_epochs)*epoch)
+            return
                 
         
     def reset_selection_count(self):
