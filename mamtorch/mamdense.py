@@ -2,6 +2,9 @@ import torch
 import mamtorchkernel
 import math
 import torch.nn.functional as F
+import torch.fx
+
+torch.fx.wrap('mamtorchkernel.mamdense_forward')
 
 class MAMDenseFunction(torch.autograd.Function):
     @staticmethod
@@ -103,7 +106,7 @@ class MAMDense(torch.nn.Module):
         C_shape = list(input.shape[:-1]) + [self.weight.size(0)] 
         
         #If self.beta is not 0 MAC output is still computed
-        if self.beta >= 10e-5:
+        if self.beta > 0:
             D = F.linear(input, self.weight)
             if self.bias is not None:
                 mam_term = (1-self.beta)*C + self.bias.view(1, -1)
