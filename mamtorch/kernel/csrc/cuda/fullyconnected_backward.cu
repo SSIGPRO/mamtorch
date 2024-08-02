@@ -17,8 +17,10 @@
 *   optimizations needed
 */
 
+namespace mamtorch {
+
 template <typename scalar_t>
-__global__ void mamdense_backward_cuda_kernel(
+__global__ void fullyconnected_backward_cuda_kernel(
     const scalar_t * __restrict__ A,
     const scalar_t * __restrict__ B,
     const scalar_t * __restrict__ Cgrad,
@@ -74,22 +76,36 @@ __global__ void mamdense_backward_cuda_kernel(
     }
 }
 
-void mamdense_backward_cuda(
-    torch::Tensor A,
-    torch::Tensor B,
-    torch::Tensor Cgrad,
-    torch::Tensor Cargmax,
-    torch::Tensor Cargmin,
-    torch::Tensor Agrad,
-    torch::Tensor Bgrad)
-{    
-    const auto M = A.size(1);
-    const auto K = A.size(0);
-    const auto N = B.size(0);
+std::vector<at::Tensor> fullyconnected_backward_cuda(
+    at::Tensor A,
+    at::Tensor B,
+    at::Tensor Cgrad,
+    at::Tensor Cargmax,
+    at::Tensor Cargmin)
+{       
+    // row-major to column-major + transpose
+    const auto ATcm = A;
+    const auto BTcm = B;
+    const auto CgradTcm = Cgrad;
+    const auto CargmaxTcm = Cargmax;
+    const auto CargminTcm = Cargmin;
+    // generate output matrix
+    auto AgradTcm = at::empty({ATcm.size(0), ATcm.size(1)}, ATcm.options());
+    auto BgradTcm = at::empty({BTcm.size(0), BTcm.size(1)}, ATcm.options());
+
+    // cuda matrices (A and B are swapped)
+    auto Acuda = BTcm;
+    auto Bcuda = ATcm;
+    auto Agradcuda = BgradTcm;
+    auto Bgradcuda = AgradTcm;
+    
+    const auto M = Acuda.size(1);
+    const auto K = Acuda.size(0);
+    const auto N = Bcuda.size(0);
     
     // initialize output matrices
-    Agrad.zero_();
-    Bgrad.zero_();
+    Agradcuda.zero_();
+    Bgradcuda.zero_();
     
     const dim3 threads(RBS,
                        RBS,
@@ -100,27 +116,17 @@ void mamdense_backward_cuda(
     
     cudaSetDevice(A.get_device());
     
-    /*
-    AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mamdense_backward_cuda_kernel", ([&]{
-    mamdense_backward_cuda_kernel<scalar_t><<<blocks, threads>>>(
-        A.data_ptr<scalar_t>(),
-        B.data_ptr<scalar_t>(),
-        Cgrad.data_ptr<scalar_t>(),
-        Cargmax.data_ptr<int>(),
-        Cargmin.data_ptr<int>(),
-        Agrad.data_ptr<scalar_t>(),
-        Bgrad.data_ptr<scalar_t>(),
+    fullyconnected_backward_cuda_kernel<float><<<blocks, threads>>>(
+        Acuda.data_ptr<float>(),
+        Bcuda.data_ptr<float>(),
+        CgradTcm.data_ptr<float>(),
+        CargmaxTcm.data_ptr<int>(),
+        CargminTcm.data_ptr<int>(),
+        Agradcuda.data_ptr<float>(),
+        Bgradcuda.data_ptr<float>(),
         M, K, N);
-    }));
-    */
-    
-    mamdense_backward_cuda_kernel<float><<<blocks, threads>>>(
-        A.data_ptr<float>(),
-        B.data_ptr<float>(),
-        Cgrad.data_ptr<float>(),
-        Cargmax.data_ptr<int>(),
-        Cargmin.data_ptr<int>(),
-        Agrad.data_ptr<float>(),
-        Bgrad.data_ptr<float>(),
-        M, K, N);
+
+    return {AgradTcm, BgradTcm};
 }
+
+} // end namespace mamtorch

@@ -1,4 +1,5 @@
 #include <torch/extension.h>
+#include <ATen/ATen.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -27,8 +28,10 @@
 * - the use of transposition and padding introduce negligible delay
 */
 
+namespace mamtorch {
+
 template <typename scalar_t>
-__global__ void mamdense_forward_cuda_kernel(
+__global__ void fullyconnected_cuda_kernel(
     const scalar_t * __restrict__ A,
     const scalar_t * __restrict__ BT,
     scalar_t * __restrict__ C,
@@ -37,7 +40,7 @@ __global__ void mamdense_forward_cuda_kernel(
     int M,
     int K,
     int N)
-{    
+{   
     // get thread and block ids
     const int bi = blockIdx.x;
     const int bj = blockIdx.y;
@@ -171,25 +174,47 @@ __global__ void mamdense_forward_cuda_kernel(
     }
 }
 
-void mamdense_forward_cuda(
-    torch::Tensor A,
-    torch::Tensor B,
-    torch::Tensor C,
-    torch::Tensor Cargmax,
-    torch::Tensor Cargmin)
-{    
-    const auto M = A.size(1);
-    const auto K = A.size(0);
-    const auto N = B.size(0);
+std::vector<at::Tensor> fullyconnected_cuda(
+    at::Tensor A,
+    at::Tensor B)
+{   
+    /*
+    // Check sizes
+    TORCH_CHECK(A.size(1) == B.size(0), "A.size(1) is not "
+                                        "the same as B.size(0).");
     
-    auto BT = B.transpose(0,1).contiguous();
+    // Check contiguity
+    TORCH_CHECK(A.is_contiguous(), "A must be contiguous.");
+    TORCH_CHECK(B.is_contiguous(), "B must be contiguous.");
+    */
+    
+    // row-major to column-major + transpose
+    const auto ATcm = A;
+    // row-major to column-major + transpose
+    const auto BTcm = B;
+    // generate output matrix
+    auto CTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    auto CargmaxTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    CargmaxTcm = CargmaxTcm.to(torch::kInt32);
+    auto CargminTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    CargminTcm = CargminTcm.to(torch::kInt32);
+
+    // cuda matrices (A and B are swapped)
+    auto Acuda = BTcm;
+    auto Bcuda = ATcm;
+    
+    const auto M = Acuda.size(1);
+    const auto K = Acuda.size(0);
+    const auto N = Bcuda.size(0);
+    
+    auto BT = Bcuda.transpose(0,1).contiguous();
 
     // declare padded tensors
-    torch::Tensor A_padded = A;
-    torch::Tensor BT_padded = BT;
-    torch::Tensor C_padded = C;
-    torch::Tensor Cargmax_padded = Cargmax.to(torch::kInt32);
-    torch::Tensor Cargmin_padded = Cargmin.to(torch::kInt32);
+    at::Tensor A_padded = Acuda;
+    at::Tensor BT_padded = BT;
+    at::Tensor C_padded = CTcm;
+    at::Tensor Cargmax_padded = CargmaxTcm.to(torch::kInt32);
+    at::Tensor Cargmin_padded = CargminTcm.to(torch::kInt32);
     
     // evaluate padding to have matrix size multiple of BSM, BN, BSK
     int M_rest = M%BSM;
@@ -220,26 +245,26 @@ void mamdense_forward_cuda(
     // pad matrix A
     if(M_rest || K_rest)
     {
-        A_padded = torch::pad(A.unsqueeze(0),
-                              torch::IntList{0, M_padding, 0, K_padding},
-                              "replicate").squeeze();
+        A_padded = at::pad(Acuda.unsqueeze(0),
+                           at::IntList{0, M_padding, 0, K_padding},
+                           "replicate").squeeze();
     }
     
     // pad matrix BT
     if(N_rest || K_rest)
     {
-        BT_padded = torch::pad(BT.unsqueeze(0),
-                               torch::IntList{0, N_padding, 0, K_padding},
-                              "replicate").squeeze();
+        BT_padded = at::pad(BT.unsqueeze(0),
+                            at::IntList{0, N_padding, 0, K_padding},
+                            "replicate").squeeze();
     }
     
     // generate padded output matrix
     if(M_rest || N_rest)
     {
-        C_padded = torch::empty({N_padded, M_padded}, C.options());
-        Cargmax_padded = torch::empty({N_padded, M_padded}, Cargmax.options());
-        Cargmin_padded = torch::empty({N_padded, M_padded}, Cargmin.options());
-    }   
+        C_padded = at::empty({N_padded, M_padded}, CTcm.options());
+        Cargmax_padded = at::empty({N_padded, M_padded}, CargmaxTcm.options());
+        Cargmin_padded = at::empty({N_padded, M_padded}, CargminTcm.options());
+    }
     
     const dim3 threads(RBSM,
                        RBSN,
@@ -248,21 +273,9 @@ void mamdense_forward_cuda(
                       N_padded/BSN,
                       1);
     
-    cudaSetDevice(A_padded.get_device());
+    cudaSetDevice(A_padded.get_device()); // set GPU number
     
-    /*
-    AT_DISPATCH_FLOATING_TYPES(A.scalar_type(), "mamdense_forward_cuda_kernel", ([&]{
-    mamdense_forward_cuda_kernel<scalar_t><<<blocks, threads>>>(
-        A_padded.data_ptr<scalar_t>(),
-        BT_padded.data_ptr<scalar_t>(),
-        C_padded.data_ptr<scalar_t>(),
-        Cargmax_padded.data_ptr<int>(),
-        Cargmin_padded.data_ptr<int>(),
-        M_padded, K_padded, N_padded);
-    }));
-    */
-    
-    mamdense_forward_cuda_kernel<float><<<blocks, threads>>>(
+    fullyconnected_cuda_kernel<float><<<blocks, threads>>>(
         A_padded.data_ptr<float>(),
         BT_padded.data_ptr<float>(),
         C_padded.data_ptr<float>(),
@@ -272,8 +285,12 @@ void mamdense_forward_cuda(
     
     if(M_rest || N_rest)
     {
-        C.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
-        Cargmax.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
-        Cargmin.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
+        CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
+        CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
+        CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
     }
+
+    return {CTcm, CargmaxTcm, CargminTcm};
 }
+
+} // end namespace mamtorch

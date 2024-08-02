@@ -3,14 +3,18 @@ Pytorch Multiply-And-Max/min repository
 
 ## Setup instructions
 
-In order to use the MAM GPU kernels, launch "python kernelsetup.py install" inside the mamtorch folder. Ninja installation highly recommended (pip install ninja).
+To compile and install mamtorch library, run
 
-To install the python package, run "pip install ." in the root folder of this repository.
+    pip install .
 
-Torch version: 2.0.1+cu117
+in the root folder.
+
+Important: make sure your torch version is compiled with the same cuda version of your machine, otherwise you will not be able to compile the library.
+
+Latest tested torch version: 2.4.0+cu118
 
 ## Original paper:
-Prono, Luciano; Bich, Philippe; Boretti, Chiara; Mangia, Mauro; Pareschi, Fabio; Rovatti, Riccardo; Setti, Gianluca (2023). A Multiply-And-Max/min Neuron Paradigm for Aggressively Prunable Deep Neural Networks. TechRxiv. Preprint. https://doi.org/10.36227/techrxiv.22561567.v1
+Prono, Luciano; Bich, Philippe; Boretti, Chiara; Mangia, Mauro; Pareschi, Fabio; Rovatti, Riccardo; Setti, Gianluca (2023). A Multiply-And-Max/min Neuron Paradigm for Aggressively Prunable Deep Neural Networks. TechRxiv. Preprint. https://doi.org/10.36227/techrxiv.22561567.v2
 
 ## Acknowledgment
 

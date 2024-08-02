@@ -1,40 +1,27 @@
 import torch
-import mamtorchkernel
 import math
 import torch.nn.functional as F
-import torch.fx
+from .. import kernel as K
 
-torch.fx.wrap('mamtorchkernel.mamdense_forward')
+__all__ = ["FullyConnected"]
 
-class MAMDenseFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, A, B):
-        C, argmax, argmin = mamtorchkernel.mamdense_forward(A, B)
-        ctx.save_for_backward(A, B, argmax, argmin)
-        return C, argmax, argmin
-
-    @staticmethod
-    def backward(ctx, C_grad, argmax_grad, argmin_grad):
-        A, B, argmax, argmin = ctx.saved_tensors
-        A_grad, B_grad = mamtorchkernel.mamdense_backward(A, B, C_grad, argmax, argmin)
-        return A_grad, B_grad, None, None
-    
-
-class MAMDense(torch.nn.Module):
-    def __init__(self, in_features, out_features, bias=True, beta=False, beta_decay='linear', beta_epochs=1):
-        super(MAMDense, self).__init__()
-        factory_kwargs = {}
-        self.input_features = in_features
-        self.state_size = out_features
-        self.weight = torch.nn.Parameter(torch.empty(out_features, in_features), **factory_kwargs)
-        self.beta_decay = beta_decay
-        self.beta_epochs = beta_epochs
+class FullyConnected(torch.nn.Module):
+    def __init__(self, in_features, out_features, bias=True, vcon_steps=0, vcon_type='linear', **kwargs):
+        super(FullyConnected, self).__init__()
         
-        if bias:
-            self.bias = torch.nn.Parameter(torch.empty(out_features), **factory_kwargs)
+        self.in_features = in_features
+        self.out_features = out_features
+        
+        self.use_bias = bias
+        self.weight = torch.nn.Parameter(torch.empty(out_features, in_features))
+        self.vcon_type = vcon_type
+        self.vcon_steps = vcon_steps
+        
+        if self.use_bias:
+            self.bias = torch.nn.Parameter(torch.empty(out_features))
         else:
             self.register_parameter('bias', None)
-        if beta:
+        if vcon_steps > 0:
             self.beta = 1.0
         else:
             self.beta = 0.0
@@ -54,22 +41,21 @@ class MAMDense(torch.nn.Module):
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             torch.nn.init.uniform_(self.bias, -bound, bound)
             
-    def adjust_beta(self, epoch):
-        if self.beta_epochs <= 0:
-            raise Exception("Invalid value for beta_epochs. Please use a positive integer.")
+    def vcon_step(self):
+        if self.vcon_steps < 0:
+            raise Exception("Invalid value for vcon_steps. Please use 0 or a positive integer.")
+        elif self.vcon_steps == 0:
+            return
 
-        if epoch >= self.beta_epochs:
+        if self.vcon_type == 'linear':
+            self.beta -= 1/self.vcon_steps
+        #elif self.beta_decay == 'descending-parabola':
+        #    self.beta = 1 - (epoch/self.beta_epochs)**2
+        #elif self.beta_decay == 'ascending-parabola':
+        #    self.beta = 1 + (1/(self.beta_epochs**2)*(epoch**2)) - ((2/self.beta_epochs)*epoch)
+
+        if self.beta <= 1e-8:
             self.beta = 0
-            return
-        if self.beta_decay == 'linear':
-            self.beta = 1 - epoch/self.beta_epochs
-            return
-        if self.beta_decay == 'descending-parabola':
-            self.beta = 1 - (epoch/self.beta_epochs)**2
-            return
-        if self.beta_decay == 'ascending-parabola':
-            self.beta = 1 + (1/(self.beta_epochs**2)*(epoch**2)) - ((2/self.beta_epochs)*epoch)
-            return
         
     def reset_selection_count(self):
         self.max_selection_count = torch.zeros_like(self.weight).to(torch.int32)
@@ -96,14 +82,14 @@ class MAMDense(torch.nn.Module):
         input_flat = input.view(-1, input.size()[-1])
         
         # apply mam
-        C, argmax, argmin = MAMDenseFunction.apply(input_flat, self.weight.T.contiguous())
+        C, argmax, argmin = K.fullyconnected(input_flat, self.weight.T.contiguous())
         
         # store argmax and argmin for external usage
         self.argmax = argmax
         self.argmin = argmin
         
         # get output shape
-        C_shape = list(input.shape[:-1]) + [self.weight.size(0)] 
+        C_shape = input.shape[:-1] + (self.weight.size(0),) 
         
         #If self.beta is not 0 MAC output is still computed
         if self.beta > 0:
@@ -122,5 +108,7 @@ class MAMDense(torch.nn.Module):
             C += self.bias.view(1, -1)  # Add bias
             C = C.view(C_shape)
         return C
-        
+
+    def __repr__(self):
+        return f"MAM@FullyConnected(in_features={self.in_features}, out_features={self.out_features}, bias={self.use_bias}, vcon_steps={self.vcon_steps}, vcon_type={self.vcon_type})"
                    
