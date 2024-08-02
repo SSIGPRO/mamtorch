@@ -3,4 +3,4 @@ from . import nn
 
 # backwards compatibility
 
-from .nn import FullyConnected as MAMDense
+from .nn.compat import *
