@@ -44,24 +44,36 @@ def get_extensions():
         extra_link_args.extend(["-O0", "-g"])
 
     this_dir = os.path.dirname(os.path.curdir)
-    extensions_dir = os.path.join(this_dir, library_name, "kernel/csrc")
-    sources = list(glob.glob(os.path.join(extensions_dir, "*.cpp")))
 
+    # kernel v1
+    extensions_dir = os.path.join(this_dir, library_name, "kernel/v1/csrc")
+    sources = list(glob.glob(os.path.join(extensions_dir, "*.cpp")))
     extensions_cuda_dir = os.path.join(extensions_dir, "cuda")
     cuda_sources = list(glob.glob(os.path.join(extensions_cuda_dir, "*.cu")))
-
     if use_cuda:
         sources += cuda_sources
 
-    print(sources)
+    # kernel v2
+    #extensions_dir_v2 = os.path.join(this_dir, library_name, "kernel/v2/csrc")
+    #sources_v2 = list(glob.glob(os.path.join(extensions_dir_v2, "*.cpp")))
+    #extensions_cuda_dir_v2 = os.path.join(extensions_dir_v2, "cuda")
+    #cuda_sources_v2 = list(glob.glob(os.path.join(extensions_cuda_dir_v2, "*.cu")))
+    #if use_cuda:
+    #    sources_v2 += cuda_sources_v2
 
     ext_modules = [
         extension(
-            f"{library_name}._C",
+            f"{library_name}.kernel.v1._C",
             sources,
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
-        )
+        ),
+        #extension(
+        #    f"{library_name}.kernel.v2._C",
+        #    sources_v2,
+        #    extra_compile_args=extra_compile_args,
+        #    extra_link_args=extra_link_args,
+        #)
     ]
 
     return ext_modules
