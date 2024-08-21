@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-namespace mamtorch {
+namespace mamtorch_kernel_v1 {
 
 std::vector<at::Tensor> fullyconnected_backward(
     at::Tensor A,

@@ -14,8 +14,8 @@ for i in range(10):
 
     print(a.shape)
     print(b.shape)
-    print(torch.library.opcheck(torch.ops.mamtorch.fullyconnected, (a, b)))
-    c, argmax, argmin = torch.ops.mamtorch.fullyconnected(a, b)
+    print(torch.library.opcheck(torch.ops.mamtorch_kernel_v1.fullyconnected, (a, b)))
+    c, argmax, argmin = torch.ops.mamtorch_kernel_v1.fullyconnected(a, b)
     c1, argmax1, argmin1 = fullyconnected_reference(a, b)
     errc = float(torch.max(torch.abs(c-c1)))
     errargmax = float(torch.max(torch.abs(argmax-argmax1)))

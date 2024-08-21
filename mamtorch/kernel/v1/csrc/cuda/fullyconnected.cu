@@ -28,7 +28,7 @@
 * - the use of transposition and padding introduce negligible delay
 */
 
-namespace mamtorch {
+namespace mamtorch_kernel_v1 {
 
 template <typename scalar_t>
 __global__ void fullyconnected_cuda_kernel(

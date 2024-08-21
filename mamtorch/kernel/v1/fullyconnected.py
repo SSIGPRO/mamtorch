@@ -3,10 +3,12 @@ from torch import Tensor
 
 __all__ = ["fullyconnected"]
 
+library_name = "mamtorch_kernel_v1"
+
 def fullyconnected(a: Tensor, b: Tensor) -> list[Tensor]:
     return torch.ops.mamtorch.fullyconnected.default(a, b)
 
-@torch.library.register_fake("mamtorch::fullyconnected")
+@torch.library.register_fake(f"{library_name}::fullyconnected")
 def _(a, b):
     torch._check(a.size(1) == b.size(0))
     torch._check(a.dtype == torch.float)
@@ -40,9 +42,9 @@ def _setup_context(ctx, inputs, output):
     ctx.save_for_backward(saved_a, saved_b, argmin, argmax)
 
 torch.library.register_autograd(
-    "mamtorch::fullyconnected", _backward, setup_context=_setup_context)
+    f"{library_name}::fullyconnected", _backward, setup_context=_setup_context)
 
-@torch.library.register_fake("mamtorch::fullyconnected_backward")
+@torch.library.register_fake(f"{library_name}::fullyconnected_backward")
 def _(a, b, grad, argmax, argmin):
     torch._check(a.size(1) == b.size(0))
     torch._check(grad.size(0) == a.size(0))

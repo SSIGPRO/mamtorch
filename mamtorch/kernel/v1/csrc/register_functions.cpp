@@ -3,7 +3,7 @@
 
 #include <vector>
 
-namespace mamtorch {
+namespace mamtorch_kernel_v1 {
 
 std::vector<at::Tensor> fullyconnected(
     at::Tensor A, 
@@ -18,12 +18,12 @@ std::vector<at::Tensor> fullyconnected_backward(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}
 
-TORCH_LIBRARY(mamtorch, m) {
+TORCH_LIBRARY(mamtorch_kernel_v1, m) {
     m.def("fullyconnected(Tensor a, Tensor b) -> Tensor[]");
     m.def("fullyconnected_backward(Tensor a, Tensor b, Tensor grad, Tensor argmax, Tensor argmin) -> Tensor[]");
 }
 
-TORCH_LIBRARY_IMPL(mamtorch, CPU, m) {
+TORCH_LIBRARY_IMPL(mamtorch_kernel_v1, CPU, m) {
     m.impl("fullyconnected", &fullyconnected);
     m.impl("fullyconnected_backward", &fullyconnected_backward);
 }

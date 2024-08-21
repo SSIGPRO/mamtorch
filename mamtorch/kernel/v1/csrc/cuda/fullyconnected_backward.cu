@@ -17,7 +17,7 @@
 *   optimizations needed
 */
 
-namespace mamtorch {
+namespace mamtorch_kernel_v1 {
 
 template <typename scalar_t>
 __global__ void fullyconnected_backward_cuda_kernel(
