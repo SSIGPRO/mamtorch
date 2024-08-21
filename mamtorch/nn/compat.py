@@ -1,7 +1,7 @@
 import torch
 import math
 import torch.nn.functional as F
-from .. import kernel as K
+from ..kernel import v1 as K
 
 __all__ = ["MAMDense"]
 
