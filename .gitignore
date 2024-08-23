@@ -1,4 +1,4 @@
 .ipynb_checkpoints/
+.vscode/
 build/
 mamtorch.egg-info/
-mamtorch/mamtorch.egg-info/
