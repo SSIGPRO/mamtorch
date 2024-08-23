@@ -4,9 +4,10 @@ from torch import Tensor
 __all__ = ["fullyconnected"]
 
 library_name = "mamtorch_kernel_v1"
+K = torch.ops.mamtorch_kernel_v1
 
 def fullyconnected(a: Tensor, b: Tensor) -> list[Tensor]:
-    return torch.ops.mamtorch.fullyconnected.default(a, b)
+    return K.fullyconnected.default(a, b)
 
 @torch.library.register_fake(f"{library_name}::fullyconnected")
 def _(a, b):
@@ -24,7 +25,7 @@ def _backward(ctx, grad):
     a, b, argmax, argmin = ctx.saved_tensors
     a_grad, b_grad = None, None
     if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
-        a_grad_tmp, b_grad_tmp = torch.ops.mamtorch.fullyconnected_backward.default(a, b, grad[0], argmax, argmin)
+        a_grad_tmp, b_grad_tmp = K.fullyconnected_backward.default(a, b, grad[0], argmax, argmin)
     if ctx.needs_input_grad[0]:
         a_grad = a_grad_tmp
     if ctx.needs_input_grad[1]:
