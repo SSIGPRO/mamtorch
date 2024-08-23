@@ -5,4 +5,4 @@ dist
 kernelsrc/.ipynb_checkpoints
 kernelsrc/mac.cpp
 kernelsrc/mac_cuda.cu
-mamtorchkernel.egg-info
+mamtorch.egg-info/
