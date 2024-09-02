@@ -36,6 +36,7 @@ class FullyConnected(torch.nn.Module):
         
     def reset_parameters(self):
         # Initialize using xavier uniform
+        gain = 1.0
         #a = gain*math.sqrt(6/(self.in_features+self.out_features))
         if self.init_mode == "uniform":
             a = gain*math.sqrt(6/(2+self.out_features))
