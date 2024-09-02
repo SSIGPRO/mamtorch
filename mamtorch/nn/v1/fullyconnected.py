@@ -6,7 +6,7 @@ from ...kernel import v1 as K
 __all__ = ["FullyConnected"]
 
 class FullyConnected(torch.nn.Module):
-    def __init__(self, in_features, out_features, bias=True, vcon_steps=0, vcon_type='linear', **kwargs):
+    def __init__(self, in_features, out_features, bias=True, vcon_steps=0, vcon_type='linear', init_mode='uniform', **kwargs):
         super(FullyConnected, self).__init__()
         
         self.in_features = in_features
@@ -16,6 +16,7 @@ class FullyConnected(torch.nn.Module):
         self.weight = torch.nn.Parameter(torch.empty(out_features, in_features))
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
+        self.init_mode = init_mode
         
         if self.use_bias:
             self.bias = torch.nn.Parameter(torch.empty(out_features))
@@ -34,8 +35,14 @@ class FullyConnected(torch.nn.Module):
         self.reset_parameters()
         
     def reset_parameters(self):
-        # Initialize weight and bias here
-        torch.nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        # Initialize using xavier uniform
+        #a = gain*math.sqrt(6/(self.in_features+self.out_features))
+        if self.init_mode == "uniform":
+            a = gain*math.sqrt(6/(2+self.out_features))
+            torch.nn.init.uniform_(self.weight, -a, a)
+        elif self.init_mode == "normal":
+            a = gain*math.sqrt(2/(2+self.out_features))
+            torch.nn.init.normal_(self.weight, std=a)
         if self.bias is not None:
             fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
@@ -53,7 +60,9 @@ class FullyConnected(torch.nn.Module):
         #    self.beta = 1 - (epoch/self.beta_epochs)**2
         #elif self.beta_decay == 'ascending-parabola':
         #    self.beta = 1 + (1/(self.beta_epochs**2)*(epoch**2)) - ((2/self.beta_epochs)*epoch)
-
+        else:
+            raise Exception(f"Vanishing contribution type '{self.vcon_type}' is not supported")
+        
         if self.beta <= 1e-8:
             self.beta = 0
         
