@@ -45,9 +45,7 @@ class FullyConnected(torch.nn.Module):
             a = gain*math.sqrt(2/(2+self.out_features))
             torch.nn.init.normal_(self.weight, std=a)
         if self.bias is not None:
-            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            torch.nn.init.uniform_(self.bias, -bound, bound)
+            torch.nn.init.zeros_(self.bias)
             
     def vcon_step(self):
         if self.vcon_steps < 0:

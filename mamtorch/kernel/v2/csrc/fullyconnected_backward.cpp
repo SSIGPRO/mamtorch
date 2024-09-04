@@ -11,7 +11,8 @@ std::vector<at::Tensor> fullyconnected_backward(
     at::Tensor B,
     at::Tensor Cgrad,
     at::Tensor Cargmax,
-    at::Tensor Cargmin)
+    at::Tensor Cargmin,
+    double beta)
 {        
     // row-major to column-major + transpose
     const auto ATcm = A;
@@ -30,8 +31,9 @@ std::vector<at::Tensor> fullyconnected_backward(
     // column-major to row-major + transpose
     auto Agrad = AgradTcm;
     auto Bgrad = BgradTcm;
+    auto biasgrad = Cgrad;
     
-    return {Agrad, Bgrad};
+    return {Agrad, Bgrad, biasgrad};
 }
 
 } // end namespace mamtorch

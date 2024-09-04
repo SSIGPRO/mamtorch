@@ -16,13 +16,14 @@ std::vector<at::Tensor> fullyconnected_backward(
     at::Tensor B,
     at::Tensor Cgrad,
     at::Tensor Cargmax,
-    at::Tensor Cargmin);
+    at::Tensor Cargmin,
+    double beta);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}
 
 TORCH_LIBRARY(mamtorch_kernel_v2, m) {
     m.def("fullyconnected(Tensor a, Tensor b, Tensor bias, float beta) -> Tensor[]");
-    m.def("fullyconnected_backward(Tensor a, Tensor b, Tensor grad, Tensor argmax, Tensor argmin) -> Tensor[]");
+    m.def("fullyconnected_backward(Tensor a, Tensor b, Tensor grad, Tensor argmax, Tensor argmin, float beta) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(mamtorch_kernel_v2, CPU, m) {

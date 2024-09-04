@@ -16,7 +16,8 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
     at::Tensor B,
     at::Tensor Cgrad,
     at::Tensor Cargmax,
-    at::Tensor Cargmin);
+    at::Tensor Cargmin,
+    double beta);
 
 TORCH_LIBRARY_IMPL(mamtorch_kernel_v2, CUDA, m) {
     m.impl("fullyconnected", &fullyconnected_cuda);
