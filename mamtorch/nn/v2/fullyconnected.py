@@ -21,6 +21,7 @@ class FullyConnected(Module):
         bias: bool = True,
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
+        wdrop_rate: float = 0,
         device=None,
         dtype=None,
     ) -> None:
@@ -35,6 +36,7 @@ class FullyConnected(Module):
         )
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
+        self.wdrop_rate = wdrop_rate
         
         if bias:
             self.bias = Parameter(torch.empty(out_features, **factory_kwargs))
@@ -101,12 +103,21 @@ class FullyConnected(Module):
         # flatten input to 2 dimensions
         input_flat = input.view(-1, input.size()[-1])
         
+        w = self.weight.T.contiguous()
+
+        if self.wdrop_rate != 0:
+            if self.wdrop_rate > 0 and self.wdrop_rate < 1:
+                w = torch.full_like(w, self.wdrop_rate).bernoulli_()*w
+            else: 
+                raise Exception("wdrop_rate must be between 0 and 1.")
+            
+
         # apply mam
         if self.bias is not None:
-            C_flat, argmax, argmin = K.fullyconnected(input_flat, self.weight.T.contiguous(), self.bias, self.beta)
+            C_flat, argmax, argmin = K.fullyconnected(input_flat, w, self.bias, self.beta)
         else:
             tbias = torch.zeros(self.out_features)
-            C_flat, argmax, argmin = K.fullyconnected(input_flat, self.weight.T.contiguous(), tbias, self.beta)
+            C_flat, argmax, argmin = K.fullyconnected(input_flat, w, tbias, self.beta)
         
         # store argmax and argmin for external usage
         self.argmax = argmax
