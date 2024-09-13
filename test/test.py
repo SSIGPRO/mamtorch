@@ -65,6 +65,8 @@ argmax_err = float(torch.mean(torch.abs(argmax-argmax_ref).to(torch.float)))
 argmin_err = float(torch.mean(torch.abs(argmin-argmin_ref).to(torch.float)))
 #print(f"Max errors {res_err} {argmax_err} {argmin_err}")
 print(f"Mean errors {res_err} {argmax_err} {argmin_err}")
+#print(torch.abs(res-res_ref))
+#print(torch.abs(res-res_ref)/torch.abs(res_ref))
 
 print()
 print("Test kernel v3: dense")
@@ -78,7 +80,7 @@ print()
 print("__________________________")
 print("Benchmarks")
 
-n, l, m = 1024, 1024, 1024
+n, l, m = 128, 1024, 2048
 
 test_iterations = 1000
 
@@ -113,7 +115,7 @@ for i in range(test_iterations):
     a = torch.randn((n, m), device=device)
     b = torch.randn((m, l), device=device)
     bias = torch.randn((l,), device=device)
-    beta = random.uniform(0, 1)
+    beta = 0#random.uniform(0, 1)
     tic = time.perf_counter()
     res, argmax, argmin = torch.ops.mamtorch_kernel_v2.fullyconnected(a, b, bias, beta)
     torch.cuda.synchronize()
@@ -140,7 +142,7 @@ for i in range(test_iterations):
     a = torch.randn((n, m), device=device)
     b = torch.randn((m, l), device=device)
     bias = torch.randn((l,), device=device)
-    beta = random.uniform(0, 1)
+    beta = 0#random.uniform(0, 1)
     tic = time.perf_counter()
     res, argmax, argmin = torch.ops.mamtorch_kernel_v3.fullyconnected(a, b, bias, beta)
     torch.cuda.synchronize()

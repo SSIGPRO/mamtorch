@@ -9,7 +9,7 @@
 
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
-#define BSK 32 // block size along K
+#define BSK 64 // block size along K
 #define WPTM 4 // work per thread along M
 #define WPTN WPTM // work per thread along N
 #define RBSM (BSM/WPTM) // reduced block_size along M
@@ -108,6 +108,8 @@ __global__ void fullyconnected_cuda_kernel(
         // evaluate partial result
         for(int k = 0; k < BSK; ++k)
         {
+            int arg = BSK*bk+k;
+
             // cache the values of Bblock in registers
             for(int wj = 0; wj < WPTN; ++wj)
             {
@@ -127,7 +129,6 @@ __global__ void fullyconnected_cuda_kernel(
                 {
                     // get weighted inputs and add to the accumulator
                     scalar_t tmp = Areg * Breg[wj]; 
-                    int arg = BSK*bk+k;
                     
                     if(tmp > accmax[wi][wj])
                     {

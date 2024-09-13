@@ -9,7 +9,7 @@
 
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
-#define BSK 32 // block size along K
+#define BSK 64 // block size along K
 #define WPTM 4 // work per thread along M
 #define WPTN WPTM // work per thread along N
 #define RBSM (BSM/WPTM) // reduced block_size along M

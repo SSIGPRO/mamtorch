@@ -9,7 +9,7 @@
 
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
-#define BSK 32 // block size along K
+#define BSK 64 // block size along K
 #define WPTM 4 // work per thread along M
 #define WPTN WPTM // work per thread along N
 #define RBSM (BSM/WPTM) // reduced block_size along M
@@ -23,24 +23,28 @@
 * - prefetch reduces performance due to the reduction of active thread for
 *   each processor (avoided)
 * - vectorization of data has not been tested
-* - BSM = 64 is approximately the best value
-* - BSK = 32 is approximately the best value
 * - the use of transposition and padding introduce negligible delay
 */
 
 namespace mamtorch_kernel_v3 {
 
-template <typename scalar_t>
 __global__ void fullyconnected_cuda_kernel(
-    const scalar_t * __restrict__ A,
-    const scalar_t * __restrict__ BT,
-    scalar_t * __restrict__ C,
+    const float * __restrict__ A,
+    const float * __restrict__ BT,
+    float * __restrict__ C,
     int * __restrict__ Cargmax,
     int * __restrict__ Cargmin,
     int M,
     int K,
     int N)
 {   
+    union argnmax_t
+    {
+        float s;
+        int32_t i;
+        int16_t ih[2];
+    };
+
     // get thread and block ids
     const int bi = blockIdx.x;
     const int bj = blockIdx.y;
@@ -57,36 +61,29 @@ __global__ void fullyconnected_cuda_kernel(
     // *** EXECUTION INITIALIZATION ***
     
     // declare shared input blocks
-    __shared__ scalar_t Ablock[BSK][BSM];
-    __shared__ scalar_t Bblock[BSN][BSK+2];
+    __shared__ float Ablock[BSK][BSM];
+    __shared__ float Bblock[BSN][BSK+2];
     
     // declare and initialize accumulators with the first value
-    scalar_t Areg;
-    scalar_t Breg[WPTN];
-    scalar_t accmax[WPTM][WPTN];
-    scalar_t accmin[WPTM][WPTN];
-    int argmax[WPTM][WPTN];
-    int argmin[WPTM][WPTN];
-    #pragma unroll
+    float Areg;
+    float Breg[WPTN];
+    union argnmax_t accmax[WPTM][WPTN];
+    union argnmax_t accmin[WPTM][WPTN];
+    
     for(int wi = 0; wi < WPTM; ++wi)
     {
-        #pragma unroll
         for(int wj = 0; wj < WPTN; ++wj)
         {
-            accmax[wi][wj] = std::numeric_limits<scalar_t>::min();
-            accmin[wi][wj] = std::numeric_limits<scalar_t>::max();
-            argmax[wi][wj] = 0;
-            argmin[wi][wj] = 0;
+            accmax[wi][wj].s = std::numeric_limits<float>::min();
+            accmin[wi][wj].s = std::numeric_limits<float>::max();
         }
     }
     
     // for each different shared input blocks
     const int num_blocks = K/BSK;
-    #pragma unroll
     for(int bk = 0; bk < num_blocks; ++bk)
     {        
         // put data in the shared input blocks
-        #pragma unroll
         for(int la = 0; la < LPTA; ++la)
         {
             // evaluate linear offset of the register group
@@ -110,11 +107,11 @@ __global__ void fullyconnected_cuda_kernel(
         __syncthreads();
             
         // evaluate partial result
-        #pragma unroll
         for(int k = 0; k < BSK; ++k)
         {
+            int arg = BSK*bk+k; // new arg
+
             // cache the values of Bblock in registers
-            #pragma unroll
             for(int wj = 0; wj < WPTN; ++wj)
             {
                 // register group offset + position in the register group
@@ -123,63 +120,44 @@ __global__ void fullyconnected_cuda_kernel(
             }
             
             // perform operation
-            #pragma unroll
             for(int wi = 0; wi < WPTM; ++wi)
             {               
                 // register group offset + position in the register group
                 int i_block =  wi*RBSM + i_reg;
                 Areg = Ablock[k][i_block];
                 
-                #pragma unroll
                 for(int wj = 0; wj < WPTN; ++wj)
                 {
                     // get weighted inputs, check if max or min and substitute in the accumulators                
-                    union argnmax_t
-                    {
-                        float s;
-                        int32_t i;
-                        int16_t ih[2];
-                    };
                     
-                    union argnmax_t diff;
                     union argnmax_t tmparg;
-                    union argnmax_t oldval;
-                    union argnmax_t newval;
-                    int64_t mask;
+                    union argnmax_t oldmax;
+                    union argnmax_t oldmin;
+                    union argnmax_t maskmax;
+                    union argnmax_t maskmin;
                     
                     // get current values
                     
                     tmparg.s = Areg * Breg[wj]; // new value
-                    tmparg.ih[0] = BSK*bk+k; // new arg
-                    
-                    // max evaluation
-                
-                    oldval.s = accmax[wi][wj]; // old max
-                    
-                    diff.s = oldval.s-tmparg.s;
+                    tmparg.ih[0] = arg; // new arg
 
-                    oldval.ih[0] = argmax[wi][wj]; // old argmax
+                    if(accmax[wi][wj].s < tmparg.s) accmax[wi][wj].i = tmparg.i;
+                    if(accmin[wi][wj].s > tmparg.s) accmin[wi][wj].i = tmparg.i;
 
-                    mask = diff.i>>31;
-                    newval.i = (oldval.i & ~mask) | (tmparg.i & mask);
-                    
-                    accmax[wi][wj] = newval.s;
-                    argmax[wi][wj] = newval.ih[0];
-                    
-                    
-                    // min evaluation
-                
-                    oldval.s = accmin[wi][wj]; // old max
-                    
-                    diff.s = oldval.s-tmparg.s;
+                    // evaluation
+                    // oldmax.s = accmax[wi][wj].s; // old max and argmax
+                    // oldmin.s = accmin[wi][wj].s; // old min and argmin
 
-                    oldval.ih[0] = argmin[wi][wj]; // old argmax
-
-                    mask = diff.i>>31;
-                    newval.i = (oldval.i & mask) | (tmparg.i & ~mask);
-                    
-                    accmin[wi][wj] = newval.s;
-                    argmin[wi][wj] = newval.ih[0];
+                    // maskmax.s = oldmax.s-tmparg.s;
+                    // maskmin.s = oldmin.s-tmparg.s;
+                    // maskmax.i >>= 31;
+                    // maskmin.i >>= 31;
+                    // accmax[wi][wj].i = (oldmax.i & ~maskmax.i) | (tmparg.i & maskmax.i);
+                    // accmin[wi][wj].i = (oldmin.i & maskmin.i) | (tmparg.i & ~maskmin.i); 
+                    // maskmax = diffmax.i>>31;
+                    // maskmin = diffmin.i>>31;
+                    // accmax[wi][wj].i = (oldmax.i & ~maskmax) | (tmparg.i & maskmax);
+                    // accmin[wi][wj].i = (oldmin.i & maskmin) | (tmparg.i & ~maskmin);  
                 }
             }
             
@@ -187,33 +165,41 @@ __global__ void fullyconnected_cuda_kernel(
         __syncthreads();
     }
     
-    // Add together maximum and minimum
-    #pragma unroll
-    for(int wi = 0; wi < WPTM; ++wi)
-    {
-        #pragma unroll
-        for(int wj = 0; wj < WPTN; ++wj)
-        {
-            accmax[wi][wj] += accmin[wi][wj];
-        }
-    }
-    
     // *** STORE THE OUTPUTS ***
     
-    #pragma unroll
     for(int wi = 0; wi < WPTM; ++wi)
     {
         // tile offset + register group offset + position in the register group
         const int i_out = i_tile_off + wi*RBSM + i_reg;
-        #pragma unroll
         for(int wj = 0; wj < WPTN; ++wj)
         {
             // tile off. + register group off. + position in the register group
             const int j_out = j_tile_off + wj*RBSN + j_reg;
             
-            C[j_out*M + i_out] = accmax[wi][wj];
-            Cargmax[j_out*M + i_out] = argmax[wi][wj];
-            Cargmin[j_out*M + i_out] = argmin[wi][wj];
+            Cargmax[j_out*M + i_out] = accmax[wi][wj].ih[0];
+            Cargmin[j_out*M + i_out] = accmin[wi][wj].ih[0];
+        }
+    }
+
+    // Add together maximum and minimum
+    for(int wi = 0; wi < WPTM; ++wi)
+    {
+        for(int wj = 0; wj < WPTN; ++wj)
+        {
+            accmax[wi][wj].s += accmin[wi][wj].s;
+        }
+    }
+
+    for(int wi = 0; wi < WPTM; ++wi)
+    {
+        // tile offset + register group offset + position in the register group
+        const int i_out = i_tile_off + wi*RBSM + i_reg;
+        for(int wj = 0; wj < WPTN; ++wj)
+        {
+            // tile off. + register group off. + position in the register group
+            const int j_out = j_tile_off + wj*RBSN + j_reg;
+            
+            C[j_out*M + i_out] = accmax[wi][wj].s;
         }
     }
 }
@@ -311,7 +297,7 @@ std::vector<at::Tensor> fullyconnected_cuda(
                       N_padded/BSN,
                       1);
     
-    fullyconnected_cuda_kernel<float><<<blocks, threads>>>(
+    fullyconnected_cuda_kernel<<<blocks, threads>>>(
         A_padded.data_ptr<float>(),
         BT_padded.data_ptr<float>(),
         C_padded.data_ptr<float>(),

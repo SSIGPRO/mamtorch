@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
 import math
-from ...kernel import v2 as K
+from ...kernel import v3 as K
 
 __all__ = ["FullyConnected"]
 
