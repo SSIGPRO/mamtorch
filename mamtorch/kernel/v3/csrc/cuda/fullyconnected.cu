@@ -36,6 +36,16 @@ __global__ void fullyconnected_cuda_kernel(
     int * __restrict__ Cargmin,
     int M,
     int K,
+    int N);
+
+/* __global__ void fullyconnected_cuda_kernel(
+    const float * __restrict__ A,
+    const float * __restrict__ BT,
+    float * __restrict__ C,
+    int * __restrict__ Cargmax,
+    int * __restrict__ Cargmin,
+    int M,
+    int K,
     int N)
 {   
     union argnmax_t
@@ -202,7 +212,7 @@ __global__ void fullyconnected_cuda_kernel(
             C[j_out*M + i_out] = accmax[wi][wj].s;
         }
     }
-}
+} */
 
 std::vector<at::Tensor> fullyconnected_cuda(
     at::Tensor A,

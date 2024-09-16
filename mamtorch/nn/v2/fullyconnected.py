@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
 import math
-from ...kernel import v3 as K
+from .. import kernel as K
 
 __all__ = ["FullyConnected"]
 
@@ -22,6 +22,7 @@ class FullyConnected(Module):
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
         wdrop_rate: float = 0,
+        compute_exact = False, # if False, use the approximate computing fast kernel (K.v3), if True, use the exact slower kernel (K.v2)
         device=None,
         dtype=None,
     ) -> None:
@@ -37,6 +38,7 @@ class FullyConnected(Module):
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
         self.wdrop_rate = wdrop_rate
+        self.compute_exact = compute_exact
         
         if bias:
             self.bias = Parameter(torch.empty(out_features, **factory_kwargs))
@@ -114,10 +116,14 @@ class FullyConnected(Module):
 
         # apply mam
         if self.bias is not None:
-            C_flat, argmax, argmin = K.fullyconnected(input_flat, w, self.bias, self.beta)
+            tbias = self.bias
         else:
             tbias = torch.zeros(self.out_features)
-            C_flat, argmax, argmin = K.fullyconnected(input_flat, w, tbias, self.beta)
+        
+        if self.exact_compute:
+            C_flat, argmax, argmin = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
+        else:
+            C_flat, argmax, argmin = K.v3.fullyconnected(input_flat, w, tbias, self.beta)
         
         # store argmax and argmin for external usage
         self.argmax = argmax
