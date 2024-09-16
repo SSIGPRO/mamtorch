@@ -4,7 +4,7 @@ import mamtorch
 import time
 from reference import fullyconnected_reference
 
-device = torch.device("cuda:1")
+device = torch.device("cuda:0")
 
 print("__________________________")
 print("Random functionality check")

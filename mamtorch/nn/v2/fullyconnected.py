@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
 import math
-from .. import kernel as K
+from ... import kernel as K
 
 __all__ = ["FullyConnected"]
 
@@ -120,7 +120,7 @@ class FullyConnected(Module):
         else:
             tbias = torch.zeros(self.out_features)
         
-        if self.exact_compute:
+        if self.compute_exact:
             C_flat, argmax, argmin = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
         else:
             C_flat, argmax, argmin = K.v3.fullyconnected(input_flat, w, tbias, self.beta)

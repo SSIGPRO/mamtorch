@@ -267,14 +267,20 @@ std::vector<at::Tensor> fullyconnected_cuda(
     const dim3 blocks(M_padded/BSM,
                       N_padded/BSN,
                       1);
-    
-    fullyconnected_cuda_kernel<float><<<blocks, threads>>>(
-        A_padded.data_ptr<float>(),
-        BT_padded.data_ptr<float>(),
-        C_padded.data_ptr<float>(),
-        Cargmax_padded.data_ptr<int>(),
-        Cargmin_padded.data_ptr<int>(),
-        M_padded, K_padded, N_padded);
+    if(beta < 0)
+    {
+        fullyconnected_cuda_kernel<float><<<blocks, threads>>>(
+            A_padded.data_ptr<float>(),
+            BT_padded.data_ptr<float>(),
+            C_padded.data_ptr<float>(),
+            Cargmax_padded.data_ptr<int>(),
+            Cargmin_padded.data_ptr<int>(),
+            M_padded, K_padded, N_padded);
+    }
+    else
+    {
+        C_padded.fill_(0.0);
+    }
 
     if(M_rest || N_rest)
     {
