@@ -69,6 +69,16 @@ print(f"Mean errors {res_err} {argmax_err} {argmin_err}")
 #print(torch.abs(res-res_ref)/torch.abs(res_ref))
 
 print()
+print("Test kernel v3: fullyconnected_fast")
+print("Operation check")
+print(torch.library.opcheck(torch.ops.mamtorch_kernel_v3.fullyconnected, (a, b, bias, beta)))
+print("Functionality check")
+res = torch.ops.mamtorch_kernel_v3.fullyconnected_fast(a, b, bias, beta)
+res_ref, _, _ = fullyconnected_reference(a, b, bias, beta)
+res_err = float(torch.max(torch.abs(res-res_ref)))
+print(f"Max errors {res_err}")
+
+print()
 print("__________________________")
 print("Benchmarks")
 

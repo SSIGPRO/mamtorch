@@ -9,9 +9,6 @@ K = torch.ops.mamtorch_kernel_v3
 def fullyconnected(a: Tensor, b: Tensor, bias: Tensor, beta: float) -> list[Tensor]:
     return K.fullyconnected.default(a, b, bias, beta)
 
-def fullyconnected_fast(a: Tensor, b: Tensor, bias: Tensor, beta: float) -> Tensor:
-    return K.fullyconnected_fast.default(a, b, bias, beta)
-
 @torch.library.register_fake(f"{library_name}::fullyconnected")
 def _(a, b, bias, beta):
     torch._check(a.size(1) == b.size(0))
@@ -27,20 +24,6 @@ def _(a, b, bias, beta):
     return torch.empty((a.size(0), b.size(1)), dtype=torch.float, device=a.device), \
            torch.empty((a.size(0), b.size(1)), dtype=torch.int, device=a.device), \
            torch.empty((a.size(0), b.size(1)), dtype=torch.int, device=a.device)
-
-@torch.library.register_fake(f"{library_name}::fullyconnected_fast")
-def _(a, b, bias, beta):
-    torch._check(a.size(1) == b.size(0))
-    torch._check(b.size(1) == bias.size(0))
-    torch._check(a.dtype == torch.float)
-    torch._check(b.dtype == torch.float)
-    torch._check(bias.dtype == torch.float)
-    torch._check(a.device == b.device)
-    torch._check(a.device == bias.device)
-    torch._check(a.is_contiguous())
-    torch._check(b.is_contiguous())
-    torch._check(bias.is_contiguous())
-    return torch.empty((a.size(0), b.size(1)), dtype=torch.float, device=a.device)
 
 def _backward(ctx, grad):
     a, b, argmax, argmin = ctx.saved_tensors
