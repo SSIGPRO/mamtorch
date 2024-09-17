@@ -267,7 +267,7 @@ std::vector<at::Tensor> fullyconnected_cuda(
     const dim3 blocks(M_padded/BSM,
                       N_padded/BSN,
                       1);
-    if(beta < 0)
+    if(beta < 1)
     {
         fullyconnected_cuda_kernel<float><<<blocks, threads>>>(
             A_padded.data_ptr<float>(),
@@ -276,17 +276,17 @@ std::vector<at::Tensor> fullyconnected_cuda(
             Cargmax_padded.data_ptr<int>(),
             Cargmin_padded.data_ptr<int>(),
             M_padded, K_padded, N_padded);
+
+        if(M_rest || N_rest)
+        {
+            CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
+            CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
+            CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
+        }
     }
     else
     {
         C_padded.fill_(0.0);
-    }
-
-    if(M_rest || N_rest)
-    {
-        CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
-        CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
-        CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
     }
 
     // transposed column-major to row-major
