@@ -23,6 +23,7 @@ class FullyConnected(Module):
         vcon_type: str = 'linear',
         wdrop_rate: float = 0,
         compute_exact = False, # if False, use the approximate computing fast kernel (K.v3), if True, use the exact slower kernel (K.v2)
+        store_args = False,
         device=None,
         dtype=None,
     ) -> None:
@@ -39,6 +40,7 @@ class FullyConnected(Module):
         self.vcon_steps = vcon_steps
         self.wdrop_rate = wdrop_rate
         self.compute_exact = compute_exact
+        self.store_args = store_args
         
         if bias:
             self.bias = Parameter(torch.empty(out_features, **factory_kwargs))
@@ -82,24 +84,30 @@ class FullyConnected(Module):
             self.beta = 0
         
     def reset_selection_count(self) -> None:
-        self.max_selection_count = torch.zeros_like(self.weight).to(torch.int32)
-        self.min_selection_count = torch.zeros_like(self.weight).to(torch.int32)
+        if self.store_args:
+            self.max_selection_count = torch.zeros_like(self.weight).to(torch.int32)
+            self.min_selection_count = torch.zeros_like(self.weight).to(torch.int32)
+        else:
+            raise Exception("MAM layer has not been set to store max and min arguments (store_args is False).")
         
     def update_selection_count(self) -> None:
-        # Use the current values of self.argmax and self.argmin to update the selection count
-        if self.argmax is None or self.argmin is None:
-            raise("No argmax or argmin values have been evaluated yet.")
+        if self.store_args:
+            # Use the current values of self.argmax and self.argmin to update the selection count
+            if self.argmax is None or self.argmin is None:
+                raise("No argmax or argmin values have been evaluated yet.")
+                
+            if self.max_selection_count is None or self.min_selection_count is None:
+                self.reset_selection_count()
+                
+            num_rows, num_cols = self.argmax.shape
+            col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
+            self.max_selection_count[col_indices, self.argmax.flatten()] += 1
             
-        if self.max_selection_count is None or self.min_selection_count is None:
-            self.reset_selection_count()
-            
-        num_rows, num_cols = self.argmax.shape
-        col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
-        self.max_selection_count[col_indices, self.argmax.flatten()] += 1
-        
-        num_rows, num_cols = self.argmin.shape
-        col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
-        self.max_selection_count[col_indices, self.argmin.flatten()] += 1
+            num_rows, num_cols = self.argmin.shape
+            col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
+            self.max_selection_count[col_indices, self.argmin.flatten()] += 1
+        else:
+            raise Exception("MAM layer has not been set to store max and min arguments (store_args is False).")
         
     def forward(self, input: Tensor) -> Tensor:
         # flatten input to 2 dimensions
@@ -119,16 +127,25 @@ class FullyConnected(Module):
             tbias = self.bias
         else:
             tbias = torch.zeros(self.out_features)
+
         
-        if self.compute_exact:
-            C_flat, argmax, argmin = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
+        
+        if self.store_args:
+            if self.compute_exact:
+                C_flat, argmax, argmin = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
+            else:
+                C_flat, argmax, argmin = K.v3.fullyconnected(input_flat, w, tbias, self.beta)
+            # store argmax and argmin for external usage
+            self.argmax = argmax
+            self.argmin = argmin
+        elif self.training:
+            if self.compute_exact:
+                C_flat, _, _ = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
+            else:
+                C_flat, _, _ = K.v3.fullyconnected(input_flat, w, tbias, self.beta)
         else:
-            C_flat, argmax, argmin = K.v3.fullyconnected(input_flat, w, tbias, self.beta)
-        
-        # store argmax and argmin for external usage
-        self.argmax = argmax
-        self.argmin = argmin
-        
+            C_flat = K.v3.fullyconnected_fast(input_flat, w, tbias, self.beta) # fast computation is always exact
+         
         # restore output shape
         C_shape = input.shape[:-1] + (self.weight.size(0),) 
         C = C_flat.view(C_shape)

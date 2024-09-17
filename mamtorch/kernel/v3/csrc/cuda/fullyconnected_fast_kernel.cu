@@ -26,12 +26,10 @@
 
 namespace mamtorch_kernel_v3 {
 
-__global__ void fullyconnected_cuda_kernel(    
+__global__ void fullyconnected_fast_cuda_kernel(    
     const float * __restrict__ A,
     const float * __restrict__ BT,
     float * __restrict__ C,
-    int * __restrict__ Cargmax,
-    int * __restrict__ Cargmin,
     int M,
     int K,
     int N)
@@ -40,7 +38,6 @@ __global__ void fullyconnected_cuda_kernel(
     {
         float s;
         int32_t i;
-        int16_t ih[2];
     };
 
     // get thread and block ids
@@ -127,14 +124,13 @@ __global__ void fullyconnected_cuda_kernel(
                 for(int wj = 0; wj < WPTN; ++wj)
                 {
                     // get weighted inputs, check if max or min and substitute in the accumulators                
-                    union floatint_t tmparg;
+                    float tmparg;
                     
                     // get current values
-                    tmparg.s = Areg * Breg[wj]; // new value
-                    tmparg.ih[0] = arg; // new arg
+                    tmparg = Areg * Breg[wj]; // new value
 
-                    accmax[wi][wj].s = max(tmparg.s, accmax[wi][wj].s);
-                    accmin[wi][wj].s = min(tmparg.s, accmin[wi][wj].s);
+                    accmax[wi][wj].s = max(tmparg, accmax[wi][wj].s);
+                    accmin[wi][wj].s = min(tmparg, accmin[wi][wj].s);
                 }
             }
             
@@ -143,20 +139,6 @@ __global__ void fullyconnected_cuda_kernel(
     }
     
     // *** STORE THE OUTPUTS ***
-
-    for(int wi = 0; wi < WPTM; ++wi)
-    {
-        // tile offset + register group offset + position in the register group
-        const int i_out = i_tile_off + wi*RBSM + i_reg;
-        for(int wj = 0; wj < WPTN; ++wj)
-        {
-            // tile off. + register group off. + position in the register group
-            const int j_out = j_tile_off + wj*RBSN + j_reg;
-            
-            Cargmax[j_out*M + i_out] = accmax[wi][wj].ih[0];
-            Cargmin[j_out*M + i_out] = accmin[wi][wj].ih[0];
-        }
-    }
 
     for(int wi = 0; wi < WPTM; ++wi)
     {
