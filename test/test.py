@@ -151,4 +151,18 @@ for i in range(test_iterations):
     toc = time.perf_counter()
     total_time += toc-tic
 print(f"Average time {total_time/test_iterations*1000} ms")
+
+print("Test kernel v3: fullyconnected_fast")
+total_time = 0
+for i in range(test_iterations):
+    a = torch.randn((n, m), device=device)
+    b = torch.randn((m, l), device=device)
+    bias = torch.randn((l,), device=device)
+    beta = 0#random.uniform(0, 1)
+    tic = time.perf_counter()
+    res = torch.ops.mamtorch_kernel_v3.fullyconnected_fast(a, b, bias, beta)
+    torch.cuda.synchronize()
+    toc = time.perf_counter()
+    total_time += toc-tic
+print(f"Average time {total_time/test_iterations*1000} ms")
     
