@@ -22,6 +22,7 @@ class FullyConnected(Module):
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
         wdrop_rate: float = 0,
+        drop_rate: float = 0,
         compute_exact = False, # if False, use the approximate computing fast kernel (K.v3), if True, use the exact slower kernel (K.v2)
         store_args = False,
         device=None,
@@ -39,6 +40,7 @@ class FullyConnected(Module):
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
         self.wdrop_rate = wdrop_rate
+        self.drop_rate = drop_rate
         self.compute_exact = compute_exact
         self.store_args = store_args
         
@@ -114,21 +116,19 @@ class FullyConnected(Module):
         input_flat = input.view(-1, input.size()[-1])
         
         w = self.weight.T.contiguous()
-
-        if self.wdrop_rate != 0:
-            if self.wdrop_rate > 0 and self.wdrop_rate < 1:
-                w = torch.full_like(w, self.wdrop_rate).bernoulli_()*w
-            else: 
-                raise Exception("wdrop_rate must be between 0 and 1.")
-            
+        
+        if self.training:
+            if self.wdrop_rate != 0:
+                if self.wdrop_rate > 0 and self.wdrop_rate < 1:
+                    w = torch.full_like(w, self.wdrop_rate).bernoulli_()*w
+                else: 
+                    raise Exception("wdrop_rate must be between 0 and 1.")            
 
         # apply mam
         if self.bias is not None:
             tbias = self.bias
         else:
-            tbias = torch.zeros(self.out_features)
-
-        
+            tbias = torch.zeros(self.out_features)        
         
         if self.store_args:
             if self.compute_exact:
@@ -149,6 +149,9 @@ class FullyConnected(Module):
         # restore output shape
         C_shape = input.shape[:-1] + (self.weight.size(0),) 
         C = C_flat.view(C_shape)
+
+        if self.drop_rate > 0:
+            C = torch.nn.functional.dropout(C, self.drop_rate, self.training)
 
         return C
 
