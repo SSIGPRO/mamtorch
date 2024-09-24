@@ -90,7 +90,7 @@ class FullyConnected(Module):
             self.max_selection_count = torch.zeros_like(self.weight).to(torch.int32)
             self.min_selection_count = torch.zeros_like(self.weight).to(torch.int32)
         else:
-            raise Exception("MAM layer has not been set to store max and min arguments (store_args is False).")
+            raise Exception("MAM layer has not been set to store max and min arguments (store_args is False). Do not use reset_selection_count()")
         
     def update_selection_count(self) -> None:
         if self.store_args:
@@ -109,7 +109,7 @@ class FullyConnected(Module):
             col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
             self.max_selection_count[col_indices, self.argmin.flatten()] += 1
         else:
-            raise Exception("MAM layer has not been set to store max and min arguments (store_args is False).")
+            raise Exception("MAM layer has not been set to store max and min arguments (store_args is False). Do not use update_selection_count()")
         
     def forward(self, input: Tensor) -> Tensor:
         # flatten input to 2 dimensions
