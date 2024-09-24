@@ -90,6 +90,7 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
     const auto CgradTcm = Cgrad;
     const auto CargmaxTcm = Cargmax;
     const auto CargminTcm = Cargmin;
+
     // generate output matrix
     auto AgradTcm = at::empty({ATcm.size(0), ATcm.size(1)}, ATcm.options());
     auto BgradTcm = at::empty({BTcm.size(0), BTcm.size(1)}, ATcm.options());
@@ -129,11 +130,6 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
         Bgradcuda.data_ptr<float>(),
         M, K, N);
     }
-    else
-    {
-        Agradcuda.fill_(0);
-        Bgradcuda.fill_(0);
-    }
 
     // swap again A and B
     auto Agrad = Bgradcuda;
@@ -147,10 +143,8 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
         Bgrad *= 1-beta;
         Bgrad += at::linalg_matmul(A.transpose(0,1), Cgrad)*beta;
     }
-    // bias gradient
-    auto biasgrad = Cgrad;
 
-    return {Agrad, Bgrad, biasgrad};
+    return {Agrad, Bgrad};
 }
 
 } // end namespace mamtorch

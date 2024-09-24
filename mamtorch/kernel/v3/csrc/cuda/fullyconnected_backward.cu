@@ -147,10 +147,8 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
         Bgrad *= 1-beta;
         Bgrad += at::linalg_matmul(A.transpose(0,1), Cgrad)*beta;
     }
-    // bias gradient
-    auto biasgrad = Cgrad;
 
-    return {Agrad, Bgrad, biasgrad};
+    return {Agrad, Bgrad};
 }
 
 } // end namespace mamtorch

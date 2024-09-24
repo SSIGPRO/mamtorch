@@ -33,7 +33,7 @@ std::vector<at::Tensor> fullyconnected_backward(
     auto Bgrad = BgradTcm;
     auto biasgrad = Cgrad;
     
-    return {Agrad, Bgrad, biasgrad};
+    return {Agrad, Bgrad};
 }
 
 } // end namespace mamtorch

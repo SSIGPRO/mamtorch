@@ -29,23 +29,18 @@ def _backward(ctx, grad):
     a, b, argmax, argmin = ctx.saved_tensors
     beta = ctx.beta
     a_grad, b_grad, bias_grad = None, None, None
-    if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]  or ctx.needs_input_grad[2]:
-        a_grad_tmp, b_grad_tmp, bias_grad_tmp = K.fullyconnected_backward.default(a, b, grad[0], argmax, argmin, beta)
-    if ctx.needs_input_grad[0]:
-        a_grad = a_grad_tmp
-    if ctx.needs_input_grad[1]:
-        b_grad = b_grad_tmp
+    if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
+        a_grad, b_grad = K.fullyconnected_backward.default(a, b, grad[0], argmax, argmin, beta)
     if ctx.needs_input_grad[2]:
-        bias_grad = bias_grad_tmp
+        bias_grad = grad[0]
     return a_grad, b_grad, bias_grad, None
 
 def _setup_context(ctx, inputs, output):
     a, b, _, beta = inputs
     _, argmax, argmin = output
     saved_a, saved_b = None, None
-    if ctx.needs_input_grad[0]:
+    if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
         saved_a = a
-    if ctx.needs_input_grad[1]:
         saved_b = b
     ctx.beta = beta
     ctx.save_for_backward(saved_a, saved_b, argmin, argmax)
@@ -55,6 +50,7 @@ torch.library.register_autograd(
 
 @torch.library.register_fake(f"{library_name}::fullyconnected_backward")
 def _(a, b, grad, argmax, argmin, beta):
+    print("I'm checking")
     torch._check(a.size(1) == b.size(0))
     torch._check(grad.size(0) == a.size(0))
     torch._check(grad.size(1) == b.size(1))
