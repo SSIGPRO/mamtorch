@@ -120,7 +120,7 @@ class FullyConnected(Module):
         if self.training:
             if self.wdrop_rate != 0:
                 if self.wdrop_rate > 0 and self.wdrop_rate < 1:
-                    w = torch.full_like(w, self.wdrop_rate).bernoulli_()*w
+                    w = torch.bernoulli(torch.full_like(w, 1-self.wdrop_rate))*w
                 else: 
                     raise Exception("wdrop_rate must be between 0 and 1.")            
 
