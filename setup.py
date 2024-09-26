@@ -69,6 +69,14 @@ def get_extensions():
     if use_cuda:
         sources_v3 += cuda_sources_v3
 
+    # sparse kernel v1
+    extensions_dir_sparsev1 = os.path.join(this_dir, library_name, "sparse/kernel/v1/csrc")
+    sources_sparsev1 = list(glob.glob(os.path.join(extensions_dir_sparsev1, "*.cpp")))
+    extensions_cuda_dir_sparsev1 = os.path.join(extensions_dir_sparsev1, "cuda")
+    cuda_sources_sparsev1 = list(glob.glob(os.path.join(extensions_cuda_dir_sparsev1, "*.cu")))
+    if use_cuda:
+        sources_sparsev1 += cuda_sources_sparsev1
+
     ext_modules = [
         extension(
             f"{library_name}.kernel.v1._C",
@@ -87,6 +95,12 @@ def get_extensions():
             sources_v3,
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
+        ),
+        extension(
+            f"{library_name}.sparse.kernel.v1._C",
+            sources_sparsev1,
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
         )
     ]
 
@@ -95,7 +109,7 @@ def get_extensions():
 
 setup(
     name=library_name,
-    version="1.3.0",
+    version="1.4.0",
     packages=find_packages(),
     ext_modules=get_extensions(),
     install_requires=["torch"],

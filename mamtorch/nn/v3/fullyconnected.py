@@ -19,6 +19,7 @@ class FullyConnected(Module):
         in_features: int,
         out_features:int,
         bias: bool = True,
+        splits: int = 1,
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
         wdrop_rate: float = 0,
@@ -33,16 +34,18 @@ class FullyConnected(Module):
         
         self.in_features = in_features
         self.out_features = out_features
-        
-        self.weight = Parameter(
-            torch.empty(out_features, in_features, **factory_kwargs)
-        )
+        self.splits = splits
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
         self.wdrop_rate = wdrop_rate
         self.drop_rate = drop_rate
         self.compute_exact = compute_exact
         self.store_args = store_args
+
+        self.weight = Parameter(torch.empty(self.out_features, self.in_features, **factory_kwargs))
+        if self.splits > 1:
+            self.in_subfeatures = math.ceil(self.in_features/self.splits)
+            self.in_subfeatures_last = self.in_features-self.in_subfeatures*(self.splits-1)
         
         if bias:
             self.bias = Parameter(torch.empty(out_features, **factory_kwargs))
@@ -124,32 +127,49 @@ class FullyConnected(Module):
                 else: 
                     raise Exception("wdrop_rate must be between 0 and 1.")            
 
-        # apply mam
-        if self.bias is not None:
-            tbias = self.bias
-        else:
-            tbias = torch.zeros(self.out_features, device=input.device)        
+        # default noargs computation function
+        def compute_noargs(input, weight):
+            tbias = torch.zeros(weight.size(-1), device=input.device)
+            if self.training:
+                if self.compute_exact:
+                    out = K.v2.fullyconnected(input, weight, tbias, self.beta)[0]
+                else:
+                    out = K.v3.fullyconnected(input, weight, tbias, self.beta)[0]
+            else:
+                out = K.v3.fullyconnected_fast(input, weight, tbias, self.beta) # fast computation is always exact
+            return out
         
-        if self.store_args:
-            if self.compute_exact:
-                C_flat, argmax, argmin = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
-            else:
-                C_flat, argmax, argmin = K.v3.fullyconnected(input_flat, w, tbias, self.beta)
-            # store argmax and argmin for external usage
-            self.argmax = argmax
-            self.argmin = argmin
-        elif self.training:
-            if self.compute_exact:
-                C_flat, _, _ = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
-            else:
-                C_flat, _, _ = K.v3.fullyconnected(input_flat, w, tbias, self.beta)
+        if self.splits > 1:
+            input_flat_split = input_flat.narrow(-1, 0, self.in_subfeatures) # cut the first input slice
+            w_split = w.narrow(0, 0, self.in_subfeatures) # cut the first weight slice
+            C_flat = compute_noargs(input_flat_split, w_split)
+            for i in range(1, self.splits-1):
+                input_flat_split = input_flat.narrow(-1, i*self.in_subfeatures, self.in_subfeatures) # cut the i-th input slice
+                w_split = w.narrow(0, i*self.in_subfeatures, self.in_subfeatures) # cut the i-th weight slice
+                C_flat += compute_noargs(input_flat_split, w_split)
+            input_flat_split = input_flat.narrow(-1, self.in_features-self.in_subfeatures_last, self.in_subfeatures_last) # cut the last input slice
+            w_split = w.narrow(0, self.in_features-self.in_subfeatures_last, self.in_subfeatures_last) # cut the last weight slice
+            C_flat += compute_noargs(input_flat_split, w_split)
         else:
-            C_flat = K.v3.fullyconnected_fast(input_flat, w, tbias, self.beta) # fast computation is always exact
+            tbias = torch.zeros(self.out_features)
+            if self.store_args:
+                if self.compute_exact:
+                    C_flat, argmax, argmin = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
+                else:
+                    C_flat, argmax, argmin = K.v3.fullyconnected(input_flat, w, tbias, self.beta)
+                # store argmax and argmin for external usage
+                self.argmax = argmax
+                self.argmin = argmin
+            else:
+                C_flat = compute_noargs(input_flat, w)
          
         # restore output shape
+        if self.bias is not None: # Add bias
+            C_flat += self.bias.view(1, -1)  
         C_shape = input.shape[:-1] + (self.weight.size(0),) 
         C = C_flat.view(C_shape)
 
+        # output dropout
         if self.drop_rate > 0:
             C = torch.nn.functional.dropout(C, self.drop_rate, self.training)
 
