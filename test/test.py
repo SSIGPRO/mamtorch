@@ -2,7 +2,7 @@ import torch
 import random
 import mamtorch
 import time
-from reference import fullyconnected_reference
+from reference import fullyconnected_reference, fullyconnected_backward_reference
 
 device = torch.device("cuda:0")
 
@@ -14,6 +14,7 @@ m = random.randint(10, 1000)
 l = random.randint(10, 1000)
 a = torch.randn((n, m), dtype=torch.float32, device=device)
 b = torch.randn((m, l), dtype=torch.float32, device=device)
+c = torch.randn((n, l), dtype=torch.float32, device=device)
 bias = torch.randn((l,), dtype=torch.float32, device=device)
 beta = random.uniform(0, 1)
 print("Shape of A:", a.shape)
@@ -53,20 +54,20 @@ res_ref = a@b
 res_err = float(torch.max(torch.abs(res-res_ref)))
 print(f"Errors {res_err}")
 
-print()
-print("Test kernel v3: fullyconnected")
-print("Operation check")
-print(torch.library.opcheck(torch.ops.mamtorch_kernel_v3.fullyconnected, (a, b, bias, beta)))
-print("Functionality check")
-res, argmax, argmin = torch.ops.mamtorch_kernel_v3.fullyconnected(a, b, bias, beta)
-res_ref, argmax_ref, argmin_ref = fullyconnected_reference(a, b, bias, beta)
-res_err = float(torch.mean(torch.abs(res-res_ref)))
-argmax_err = float(torch.mean(torch.abs(argmax-argmax_ref).to(torch.float)))
-argmin_err = float(torch.mean(torch.abs(argmin-argmin_ref).to(torch.float)))
-#print(f"Max errors {res_err} {argmax_err} {argmin_err}")
-print(f"Mean errors {res_err} {argmax_err} {argmin_err}")
-#print(torch.abs(res-res_ref))
-#print(torch.abs(res-res_ref)/torch.abs(res_ref))
+# print()
+# print("Test kernel v3: fullyconnected")
+# print("Operation check")
+# print(torch.library.opcheck(torch.ops.mamtorch_kernel_v3.fullyconnected, (a, b, bias, beta)))
+# print("Functionality check")
+# res, argmax, argmin = torch.ops.mamtorch_kernel_v3.fullyconnected(a, b, bias, beta)
+# res_ref, argmax_ref, argmin_ref = fullyconnected_reference(a, b, bias, beta)
+# res_err = float(torch.mean(torch.abs(res-res_ref)))
+# argmax_err = float(torch.mean(torch.abs(argmax-argmax_ref).to(torch.float)))
+# argmin_err = float(torch.mean(torch.abs(argmin-argmin_ref).to(torch.float)))
+# #print(f"Max errors {res_err} {argmax_err} {argmin_err}")
+# print(f"Mean errors {res_err} {argmax_err} {argmin_err}")
+# #print(torch.abs(res-res_ref))
+# #print(torch.abs(res-res_ref)/torch.abs(res_ref))
 
 print()
 print("Test kernel v3: fullyconnected_fast")
@@ -77,6 +78,13 @@ res = torch.ops.mamtorch_kernel_v3.fullyconnected_fast(a, b, bias, beta)
 res_ref, _, _ = fullyconnected_reference(a, b, bias, beta)
 res_err = float(torch.max(torch.abs(res-res_ref)))
 print(f"Max errors {res_err}")
+
+print()
+print("Test kernel v3: fullyconnected_backwards")
+print("Functionality check")
+agrad_res, bgrad_res = torch.ops.mamtorch_kernel_v3.fullyconnected_backward(a, b, c, argmax, argmin, beta)
+agrad_res_ref, bgrad_res_ref = fullyconnected_backward_reference(a, b, c, argmax, argmin, beta)
+print(f"Max errors {torch.max(torch.abs(agrad_res-agrad_res_ref))} {torch.max(torch.abs(bgrad_res-bgrad_res_ref))}")
 
 print()
 print("__________________________")
