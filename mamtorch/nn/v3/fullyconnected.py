@@ -22,6 +22,7 @@ class FullyConnected(Module):
         splits: int = 1,
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
+        vcon_eps: float = 1e-3,
         wdrop_rate: float = 0,
         drop_rate: float = 0,
         compute_exact = False, # if False, use the approximate computing fast kernel (K.v3), if True, use the exact slower kernel (K.v2)
@@ -37,6 +38,7 @@ class FullyConnected(Module):
         self.splits = splits
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
+        self.vcon_eps = vcon_eps
         self.wdrop_rate = wdrop_rate
         self.drop_rate = drop_rate
         self.compute_exact = compute_exact
@@ -55,7 +57,7 @@ class FullyConnected(Module):
         if vcon_steps > 0:
             self.beta = 1.0
         else:
-            self.beta = 0.0
+            self.beta = 0.0          
         
         self.max_selection_count = None
         self.min_selection_count = None
@@ -80,12 +82,13 @@ class FullyConnected(Module):
 
         if self.vcon_type == 'linear':
             self.beta -= 1/self.vcon_steps
-        #elif self.beta_decay == 'descending-parabola':
-        #    self.beta = 1 - (epoch/self.beta_epochs)**2
-        #elif self.beta_decay == 'ascending-parabola':
-        #    self.beta = 1 + (1/(self.beta_epochs**2)*(epoch**2)) - ((2/self.beta_epochs)*epoch)
+        elif self.vcon_type == 'exponential':
+            gamma = math.exp(math.log(self.vcon_eps)/self.vcon_steps)
+            self.beta *= gamma
+        else:
+            raise Exception(f"vcon_type '{self.vcon_type}' is not supported.")
 
-        if self.beta <= 1e-8:
+        if self.beta <= self.vcon_eps:
             self.beta = 0
         
     def reset_selection_count(self) -> None:

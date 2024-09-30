@@ -109,7 +109,7 @@ def get_extensions():
 
 setup(
     name=library_name,
-    version="1.4.0",
+    version="1.4.1",
     packages=find_packages(),
     ext_modules=get_extensions(),
     install_requires=["torch"],
