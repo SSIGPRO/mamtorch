@@ -28,7 +28,7 @@ def get_extensions():
     use_cuda = use_cuda and torch.cuda.is_available() and CUDA_HOME is not None
     extension = CUDAExtension if use_cuda else CppExtension
 
-    extra_link_args = []
+    extra_link_args = ["-lcusparse"]
     extra_compile_args = {
         "cxx": [
             "-O3" if not debug_mode else "-O0",
