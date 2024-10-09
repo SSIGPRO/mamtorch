@@ -20,6 +20,7 @@ class FullyConnected(Module):
         out_features:int,
         bias: bool = True,
         splits: int = 1,
+        relu_in: bool = False,
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
         vcon_eps: float = 1e-3,
@@ -36,6 +37,7 @@ class FullyConnected(Module):
         self.in_features = in_features
         self.out_features = out_features
         self.splits = splits
+        self.relu_in = relu_in
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
         self.vcon_eps = vcon_eps
@@ -48,6 +50,7 @@ class FullyConnected(Module):
         if self.splits > 1:
             self.in_subfeatures = math.ceil(self.in_features/self.splits)
             self.in_subfeatures_last = self.in_features-self.in_subfeatures*(self.splits-1)
+            print(f"Splits are: {self.in_subfeatures} x {self.splits-1} + {self.in_subfeatures_last} = {self.in_features}")
         
         if bias:
             self.bias = Parameter(torch.empty(out_features, **factory_kwargs))
@@ -118,6 +121,10 @@ class FullyConnected(Module):
             raise Exception("MAM layer has not been set to store max and min arguments (store_args is False). Do not use update_selection_count()")
         
     def forward(self, input: Tensor) -> Tensor:
+        # apply relu to input if requested
+        if self.relu_in:
+            input = torch.nn.functional.relu(input)
+
         # flatten input to 2 dimensions
         input_flat = input.view(-1, input.size()[-1])
         
@@ -146,10 +153,12 @@ class FullyConnected(Module):
             input_flat_split = input_flat.narrow(-1, 0, self.in_subfeatures) # cut the first input slice
             w_split = w.narrow(0, 0, self.in_subfeatures) # cut the first weight slice
             C_flat = compute_noargs(input_flat_split, w_split)
+
             for i in range(1, self.splits-1):
                 input_flat_split = input_flat.narrow(-1, i*self.in_subfeatures, self.in_subfeatures) # cut the i-th input slice
                 w_split = w.narrow(0, i*self.in_subfeatures, self.in_subfeatures) # cut the i-th weight slice
                 C_flat += compute_noargs(input_flat_split, w_split)
+                
             input_flat_split = input_flat.narrow(-1, self.in_features-self.in_subfeatures_last, self.in_subfeatures_last) # cut the last input slice
             w_split = w.narrow(0, self.in_features-self.in_subfeatures_last, self.in_subfeatures_last) # cut the last weight slice
             C_flat += compute_noargs(input_flat_split, w_split)
@@ -179,4 +188,4 @@ class FullyConnected(Module):
         return C
 
     def __repr__(self) -> str:
-        return f"MAM@FullyConnected(in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}, vcon_steps={self.vcon_steps}, vcon_type={self.vcon_type})"
+        return f"MAM@FullyConnected(in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}, splits={self.splits}, relu_in={self.relu_in}, vcon_steps={self.vcon_steps}, vcon_type={self.vcon_type})"
