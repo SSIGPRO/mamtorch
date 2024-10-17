@@ -50,12 +50,6 @@ std::vector<at::Tensor> fullyconnected_cuda(
     const auto ATcm = A;
     // row-major to column-major + transpose
     const auto BTcm = B;
-    // generate output matrix
-    auto CTcm = at::zeros({A.size(0), B.size(1)}, A.options());
-    auto CargmaxTcm = at::zeros({A.size(0), B.size(1)}, A.options());
-    CargmaxTcm = CargmaxTcm.to(torch::kInt32);
-    auto CargminTcm = at::zeros({A.size(0), B.size(1)}, A.options());
-    CargminTcm = CargminTcm.to(torch::kInt32);
 
     // cuda matrices (A and B are swapped)
     auto Acuda = BTcm;
@@ -70,9 +64,6 @@ std::vector<at::Tensor> fullyconnected_cuda(
     // declare padded tensors
     at::Tensor A_padded = Acuda;
     at::Tensor BT_padded = BT;
-    at::Tensor C_padded = CTcm;
-    at::Tensor Cargmax_padded = CargmaxTcm.to(torch::kInt32);
-    at::Tensor Cargmin_padded = CargminTcm.to(torch::kInt32);
     
     // evaluate padding to have matrix size multiple of BSM, BN, BSK
     int M_rest = M%BSM;
@@ -119,10 +110,13 @@ std::vector<at::Tensor> fullyconnected_cuda(
     // generate padded output matrix
     if(M_rest || N_rest)
     {
-        C_padded = at::empty({N_padded, M_padded}, CTcm.options());
-        Cargmax_padded = at::empty({N_padded, M_padded}, CargmaxTcm.options());
-        Cargmin_padded = at::empty({N_padded, M_padded}, CargminTcm.options());
-    }
+        
+    }   
+    auto C_padded = at::zeros({A.size(0), B.size(1)}, A.options());
+    auto Cargmax_padded = at::zeros({A.size(0), B.size(1)}, A.options());
+    auto Cargmin_padded = at::zeros({A.size(0), B.size(1)}, A.options());
+    Cargmax_padded = Cargmax_padded.to(torch::kInt32);
+    Cargmin_padded = Cargmin_padded.to(torch::kInt32);
     
     const dim3 threads(RBSM,
                        RBSN,
@@ -143,16 +137,16 @@ std::vector<at::Tensor> fullyconnected_cuda(
 
         if(M_rest || N_rest)
         {
-            CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
-            CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
-            CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
+            C_padded = C_padded.slice(0, 0, N).slice(1, 0, M);
+            Cargmax_padded = Cargmax_padded.slice(0, 0, N).slice(1, 0, M);
+            Cargmin_padded = Cargmin_padded.slice(0, 0, N).slice(1, 0, M);
         }
     }
 
-    // transposed column-major to row-major
-    auto C = CTcm;
-    auto Cargmax = torch::clamp(CargmaxTcm, 0, K-1);
-    auto Cargmin = torch::clamp(CargminTcm, 0, K-1);
+    // transposed column-major to row-major -> identity
+    auto C = C_padded;
+    auto Cargmax = torch::clamp(Cargmax_padded, 0, K-1);
+    auto Cargmin = torch::clamp(Cargmin_padded, 0, K-1);
     // NOTE: clamping is fundamental for the approximated computing kernel
     // when the maximum/minimum value is the last one, since padding is
     // performed with "replicate" option

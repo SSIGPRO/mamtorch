@@ -12,7 +12,7 @@ print("Random functionality check")
 n = random.randint(10, 1000)
 m = random.randint(10, 1000)
 l = random.randint(10, 1000)
-n, m, l = 128, 28*28, 512
+n, m, l = 128, 768, 512
 a = torch.randn((n, m), dtype=torch.float32, device=device)
 b = torch.randn((m, l), dtype=torch.float32, device=device)
 c = torch.randn((n, l), dtype=torch.float32, device=device)
@@ -46,6 +46,20 @@ res_err = float(torch.max(torch.abs(res-res_ref)))
 argmax_err = float(torch.max(torch.abs(argmax-argmax_ref)))
 argmin_err = float(torch.max(torch.abs(argmin-argmin_ref)))
 print(f"Errors {res_err} {argmax_err} {argmin_err}")
+
+i = 0
+for arg, argtrue in zip(argmax.flatten().cpu().numpy(), argmax.flatten().cpu().numpy()):
+    if arg > m or arg < 0:
+        i += 1
+        print(arg, argtrue, i, end=" | ")
+
+print()
+i = 0
+for arg, argtrue in zip(argmin.flatten().cpu().numpy(), argmin.flatten().cpu().numpy()):
+    if arg > m or arg < 0:
+        i += 1
+        print(arg, argtrue, i, end=" | ")
+print()
 
 print()
 print("Test kernel v2: dense")
