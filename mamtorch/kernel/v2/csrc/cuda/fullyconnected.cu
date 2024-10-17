@@ -24,7 +24,7 @@
 *   each processor (avoided)
 * - vectorization of data has not been tested
 * - BSM = 64 is approximately the best value
-* - BSK = 32 is approximately the best value
+* - BSK = 64 is approximately the best value
 * - the use of transposition and padding introduce negligible delay
 */
 

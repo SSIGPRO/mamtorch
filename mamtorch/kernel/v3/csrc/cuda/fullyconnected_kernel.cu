@@ -2,8 +2,8 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
-//#include <vector>
-//#include <limits>
+#include <vector>
+#include <limits>
 
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
@@ -67,6 +67,8 @@ __global__ void fullyconnected_cuda_kernel(
     float Breg[WPTN];
     union floatint_t accmax[WPTM][WPTN];
     union floatint_t accmin[WPTM][WPTN];
+    union floatint_t argmax[WPTM][WPTN];
+    union floatint_t argmin[WPTM][WPTN];
     
     for(int wi = 0; wi < WPTM; ++wi)
     {
@@ -135,6 +137,11 @@ __global__ void fullyconnected_cuda_kernel(
 
                     accmax[wi][wj].s = max(tmparg.s, accmax[wi][wj].s);
                     accmin[wi][wj].s = min(tmparg.s, accmin[wi][wj].s);
+                    // NOTE: when input value is close to the acc value, big error in 
+                    // the evaluation of argmax or argmin might occur.
+                    // When using padding with "replicate" option, this results in
+                    // memory illegal accesses during backprop.
+                    // SOLUTION: saturate argmax argmin values outside of the kernel
                 }
             }
             

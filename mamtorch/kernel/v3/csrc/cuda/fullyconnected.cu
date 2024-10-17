@@ -151,8 +151,11 @@ std::vector<at::Tensor> fullyconnected_cuda(
 
     // transposed column-major to row-major
     auto C = CTcm;
-    auto Cargmax = CargmaxTcm;
-    auto Cargmin = CargminTcm;
+    auto Cargmax = torch::clamp(CargmaxTcm, 0, K-1);
+    auto Cargmin = torch::clamp(CargminTcm, 0, K-1);
+    // NOTE: clamping is fundamental for the approximated computing kernel
+    // when the maximum/minimum value is the last one, since padding is
+    // performed with "replicate" option
 
     // perform affine combination with MAC contribution
     if(beta > 0)

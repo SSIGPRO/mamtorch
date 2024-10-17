@@ -1,4 +1,5 @@
 #include <torch/extension.h>
+#include <math.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -46,13 +47,13 @@ __global__ void fullyconnected_backward_cuda_kernel(
     
     if((Ci < M) && (Cj < N))
     {
-        const int i_loops = WPT < M-Ci ? WPT : M-Ci;
+        const int i_loops = min(WPT, M-Ci);
         for(int i = 0; i < i_loops; ++i)
         {
-            const int j_loops = WPT < N-Cj ? WPT : N-Cj;
+            const int j_loops = min(WPT, N-Cj);
             for(int j = 0; j < j_loops; ++j)
             {
-                int index = Ci+i + (Cj+j)*M;
+                int index = Ci + i + (Cj + j) * M;
                 scalar_t Cgrad_val = Cgrad[index];
                 int kmax = Cargmax[index];
                 int kmin = Cargmin[index];
