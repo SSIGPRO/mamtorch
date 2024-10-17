@@ -105,7 +105,7 @@ class FullyConnected(Module):
         if self.store_args:
             # Use the current values of self.argmax and self.argmin to update the selection count
             if self.argmax is None or self.argmin is None:
-                raise("No argmax or argmin values have been evaluated yet.")
+                raise Exception("No argmax or argmin values have been evaluated yet.")
                 
             if self.max_selection_count is None or self.min_selection_count is None:
                 self.reset_selection_count()
@@ -163,7 +163,7 @@ class FullyConnected(Module):
             w_split = w.narrow(0, self.in_features-self.in_subfeatures_last, self.in_subfeatures_last) # cut the last weight slice
             C_flat += compute_noargs(input_flat_split, w_split)
         else:
-            tbias = torch.zeros(self.out_features)
+            tbias = torch.zeros(w.size(-1), device=input.device)
             if self.store_args:
                 if self.compute_exact:
                     C_flat, argmax, argmin = K.v2.fullyconnected(input_flat, w, tbias, self.beta)
