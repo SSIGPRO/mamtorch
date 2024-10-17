@@ -129,11 +129,6 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
         Bgradcuda.data_ptr<float>(),
         M, K, N);
     }
-    else
-    {
-        Agradcuda.fill_(0);
-        Bgradcuda.fill_(0);
-    }
 
     // swap again A and B
     auto Agrad = Bgradcuda;

@@ -188,10 +188,10 @@ std::vector<at::Tensor> fullyconnected_cuda(
     // row-major to column-major + transpose
     const auto BTcm = B;
     // generate output matrix
-    auto CTcm = at::empty({A.size(0), B.size(1)}, A.options());
-    auto CargmaxTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    auto CTcm = at::zeros({A.size(0), B.size(1)}, A.options());
+    auto CargmaxTcm = at::zeros({A.size(0), B.size(1)}, A.options());
     CargmaxTcm = CargmaxTcm.to(torch::kInt32);
-    auto CargminTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    auto CargminTcm = at::zeros({A.size(0), B.size(1)}, A.options());
     CargminTcm = CargminTcm.to(torch::kInt32);
 
     // cuda matrices (A and B are swapped)
@@ -283,10 +283,6 @@ std::vector<at::Tensor> fullyconnected_cuda(
             CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
             CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
         }
-    }
-    else
-    {
-        C_padded.fill_(0.0);
     }
 
     // transposed column-major to row-major

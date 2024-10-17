@@ -34,7 +34,6 @@ res_ref = a@b
 
 print("Conversion to COO sparse matrices")
 asparse = a.to_sparse(layout=sparsity_format)
-print(asparse)
 
 print("Test against torch.sparse")
 res = torch.sparse.mm(asparse, b).to_dense()

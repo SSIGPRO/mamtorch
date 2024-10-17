@@ -50,7 +50,6 @@ class FullyConnected(Module):
         if self.splits > 1:
             self.in_subfeatures = math.ceil(self.in_features/self.splits)
             self.in_subfeatures_last = self.in_features-self.in_subfeatures*(self.splits-1)
-            print(f"Splits are: {self.in_subfeatures} x {self.splits-1} + {self.in_subfeatures_last} = {self.in_features}")
         
         if bias:
             self.bias = Parameter(torch.empty(out_features, **factory_kwargs))
