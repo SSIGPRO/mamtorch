@@ -17,7 +17,7 @@ from torch.utils.cpp_extension import (
 )
 
 library_name = "mamtorch"
-version = "1.4.4"
+version = "1.5.0"
 
 
 def get_extensions():
@@ -70,6 +70,14 @@ def get_extensions():
     if use_cuda:
         sources_v3 += cuda_sources_v3
 
+    # kernel v3
+    extensions_dir_v4 = os.path.join(this_dir, library_name, "kernel/v4/csrc")
+    sources_v4 = list(glob.glob(os.path.join(extensions_dir_v4, "*.cpp")))
+    extensions_cuda_dir_v4 = os.path.join(extensions_dir_v4, "cuda")
+    cuda_sources_v4 = list(glob.glob(os.path.join(extensions_cuda_dir_v4, "*.cu")))
+    if use_cuda:
+        sources_v4 += cuda_sources_v4
+
     # sparse kernel v1
     extensions_dir_sparsev1 = os.path.join(this_dir, library_name, "sparse/kernel/v1/csrc")
     sources_sparsev1 = list(glob.glob(os.path.join(extensions_dir_sparsev1, "*.cpp")))
@@ -94,6 +102,12 @@ def get_extensions():
         extension(
             f"{library_name}.kernel.v3._C",
             sources_v3,
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+        ),
+        extension(
+            f"{library_name}.kernel.v4._C",
+            sources_v4,
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
         ),
