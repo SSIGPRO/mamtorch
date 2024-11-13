@@ -7,6 +7,8 @@
 #include <vector>
 #include <limits>
 
+#include <stdio.h>
+
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
 #define BSK 64 // block size along K
@@ -187,6 +189,12 @@ std::vector<at::Tensor> fullyconnected_cuda(
     const auto ATcm = A;
     // row-major to column-major + transpose
     const auto BTcm = B;
+    // generate output matrix
+    auto CTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    auto CargmaxTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    CargmaxTcm = CargmaxTcm.to(torch::kInt32);
+    auto CargminTcm = at::empty({A.size(0), B.size(1)}, A.options());
+    CargminTcm = CargminTcm.to(torch::kInt32);
 
     // cuda matrices (A and B are swapped)
     auto Acuda = BTcm;
@@ -245,13 +253,9 @@ std::vector<at::Tensor> fullyconnected_cuda(
     }
     
     // generate padded output matrix
-    if(M_rest || N_rest)
-    {
-        
-    }   
-    auto C_padded = at::zeros({A.size(0), B.size(1)}, A.options());
-    auto Cargmax_padded = at::zeros({A.size(0), B.size(1)}, A.options());
-    auto Cargmin_padded = at::zeros({A.size(0), B.size(1)}, A.options());
+    auto C_padded = at::zeros({N_padded, M_padded}, A.options());
+    auto Cargmax_padded = at::zeros({N_padded, M_padded}, A.options());
+    auto Cargmin_padded = at::zeros({N_padded, M_padded}, A.options());
     Cargmax_padded = Cargmax_padded.to(torch::kInt32);
     Cargmin_padded = Cargmin_padded.to(torch::kInt32);
     
@@ -271,19 +275,19 @@ std::vector<at::Tensor> fullyconnected_cuda(
             Cargmax_padded.data_ptr<int>(),
             Cargmin_padded.data_ptr<int>(),
             M_padded, K_padded, N_padded);
+    }
 
-        if(M_rest || N_rest)
-        {
-            C_padded = C_padded.slice(0, 0, N).slice(1, 0, M);
-            Cargmax_padded = Cargmax_padded.slice(0, 0, N).slice(1, 0, M);
-            Cargmin_padded = Cargmin_padded.slice(0, 0, N).slice(1, 0, M);
-        }
+    if(M_rest || N_rest)
+    {
+        CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
+        CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
+        CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
     }
 
     // transposed column-major to row-major -> identity
-    auto C = C_padded;
-    auto Cargmax = Cargmax_padded;
-    auto Cargmin = Cargmin_padded;
+    auto C = CTcm;
+    auto Cargmax = CargmaxTcm;
+    auto Cargmin = CargminTcm;
 
     // perform affine combination with MAC contribution
     if(beta > 0)

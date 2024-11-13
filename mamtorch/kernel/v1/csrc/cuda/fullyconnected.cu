@@ -259,12 +259,9 @@ std::vector<at::Tensor> fullyconnected_cuda(
     }
     
     // generate padded output matrix
-    if(M_rest || N_rest)
-    {
-        C_padded = at::empty({N_padded, M_padded}, CTcm.options());
-        Cargmax_padded = at::empty({N_padded, M_padded}, CargmaxTcm.options());
-        Cargmin_padded = at::empty({N_padded, M_padded}, CargminTcm.options());
-    }
+    C_padded = at::empty({N_padded, M_padded}, CTcm.options());
+    Cargmax_padded = at::empty({N_padded, M_padded}, CargmaxTcm.options());
+    Cargmin_padded = at::empty({N_padded, M_padded}, CargminTcm.options());
     
     const dim3 threads(RBSM,
                        RBSN,
