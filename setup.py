@@ -54,7 +54,7 @@ def get_extensions():
     if use_cuda:
         sources += cuda_sources
 
-    # kernel v2
+    # # kernel v2
     # extensions_dir_v2 = os.path.join(this_dir, library_name, "kernel/v2/csrc")
     # sources_v2 = list(glob.glob(os.path.join(extensions_dir_v2, "*.cpp")))
     # extensions_cuda_dir_v2 = os.path.join(extensions_dir_v2, "cuda")
