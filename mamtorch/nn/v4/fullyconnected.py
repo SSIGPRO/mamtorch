@@ -208,7 +208,7 @@ class FullyConnected(Module):
         return C
 
     def __repr__(self) -> str:
-        description_string = f"MAM@FullyConnected(in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None})"
+        description_string = f"MAM@FullyConnected(in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}"
         if self.vcon_steps > 0:
             description_string += f", vcon_steps={self.vcon_steps}, vcon_type={self.vcon_type}"
         if self.splits > 1:
