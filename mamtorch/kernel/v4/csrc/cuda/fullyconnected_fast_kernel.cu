@@ -104,8 +104,6 @@ __global__ void fullyconnected_fast_cuda_kernel(
         // evaluate partial result
         for(int k = 0; k < BSK; ++k)
         {
-            int arg = BSK*bk+k; // new arg
-
             // cache the values of Bblock in registers
             for(int wj = 0; wj < WPTN; ++wj)
             {
