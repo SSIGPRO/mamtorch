@@ -29,6 +29,7 @@ class FullyConnected(Module):
         wdrop_rate: float = 0,
         drop_rate: float = 0,
         compute_exact = False, # if False, use the approximate computing fast kernel (K.v4), if True, use the exact slower kernel (K.v1)
+        train_mam_only = False, # if True, during vanishing contribution, gradient is evaluated ONLY on the selected max and min interconnections
         store_args = False,
         device=None,
         dtype=None,
@@ -47,6 +48,7 @@ class FullyConnected(Module):
         self.wdrop_rate = wdrop_rate
         self.drop_rate = drop_rate
         self.compute_exact = compute_exact
+        self.train_mam_only = train_mam_only
         self.store_args = store_args
 
         self.weight = Parameter(torch.empty(self.out_features, self.in_features, **factory_kwargs))
@@ -186,7 +188,10 @@ class FullyConnected(Module):
         
         # add MAC term
         if self.beta > 0:
-            C_flat = self.alpha*C_flat + self.beta*F.linear(input_flat, self.weight)
+            if self.train_mam_only:
+                C_flat = self.alpha*C_flat + self.beta*F.linear(input_flat, self.weight.detach())
+            else:
+                C_flat = self.alpha*C_flat + self.beta*F.linear(input_flat, self.weight)
 
         # add bias
         if self.bias is not None:
