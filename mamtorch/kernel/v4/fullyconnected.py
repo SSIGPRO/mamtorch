@@ -3,8 +3,8 @@ from torch import Tensor
 
 __all__ = ["fullyconnected"]
 
-library_name = "mamtorch_kernel_v1"
-K = torch.ops.mamtorch_kernel_v1
+library_name = "mamtorch_kernel_v4"
+K = torch.ops.mamtorch_kernel_v4
 
 def fullyconnected(a: Tensor, b: Tensor) -> list[Tensor]:
     return K.fullyconnected.default(a, b)
@@ -30,7 +30,7 @@ def _backward(ctx, grad):
 
 def _setup_context(ctx, inputs, output):
     a, b = inputs
-    c, argmax, argmin = output
+    _, argmax, argmin = output
     saved_a, saved_b = None, None
     if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
         saved_a = a

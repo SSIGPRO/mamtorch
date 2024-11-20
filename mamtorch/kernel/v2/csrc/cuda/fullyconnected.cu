@@ -7,6 +7,8 @@
 #include <vector>
 #include <limits>
 
+#include <stdio.h>
+
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
 #define BSK 64 // block size along K
@@ -24,7 +26,7 @@
 *   each processor (avoided)
 * - vectorization of data has not been tested
 * - BSM = 64 is approximately the best value
-* - BSK = 32 is approximately the best value
+* - BSK = 64 is approximately the best value
 * - the use of transposition and padding introduce negligible delay
 */
 
@@ -207,9 +209,6 @@ std::vector<at::Tensor> fullyconnected_cuda(
     // declare padded tensors
     at::Tensor A_padded = Acuda;
     at::Tensor BT_padded = BT;
-    at::Tensor C_padded = CTcm;
-    at::Tensor Cargmax_padded = CargmaxTcm.to(torch::kInt32);
-    at::Tensor Cargmin_padded = CargminTcm.to(torch::kInt32);
     
     // evaluate padding to have matrix size multiple of BSM, BN, BSK
     int M_rest = M%BSM;
@@ -254,12 +253,11 @@ std::vector<at::Tensor> fullyconnected_cuda(
     }
     
     // generate padded output matrix
-    if(M_rest || N_rest)
-    {
-        C_padded = at::empty({N_padded, M_padded}, CTcm.options());
-        Cargmax_padded = at::empty({N_padded, M_padded}, CargmaxTcm.options());
-        Cargmin_padded = at::empty({N_padded, M_padded}, CargminTcm.options());
-    }
+    auto C_padded = at::zeros({N_padded, M_padded}, A.options());
+    auto Cargmax_padded = at::zeros({N_padded, M_padded}, A.options());
+    auto Cargmin_padded = at::zeros({N_padded, M_padded}, A.options());
+    Cargmax_padded = Cargmax_padded.to(torch::kInt32);
+    Cargmin_padded = Cargmin_padded.to(torch::kInt32);
     
     const dim3 threads(RBSM,
                        RBSN,
@@ -267,29 +265,26 @@ std::vector<at::Tensor> fullyconnected_cuda(
     const dim3 blocks(M_padded/BSM,
                       N_padded/BSN,
                       1);
+    
     if(beta < 1)
     {
-        fullyconnected_cuda_kernel<float><<<blocks, threads>>>(
+        fullyconnected_cuda_kernel<<<blocks, threads>>>(
             A_padded.data_ptr<float>(),
             BT_padded.data_ptr<float>(),
             C_padded.data_ptr<float>(),
             Cargmax_padded.data_ptr<int>(),
             Cargmin_padded.data_ptr<int>(),
             M_padded, K_padded, N_padded);
-
-        if(M_rest || N_rest)
-        {
-            CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
-            CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
-            CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
-        }
     }
-    else
+
+    if(M_rest || N_rest)
     {
-        C_padded.fill_(0.0);
+        CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
+        CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
+        CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
     }
 
-    // transposed column-major to row-major
+    // transposed column-major to row-major -> identity
     auto C = CTcm;
     auto Cargmax = CargmaxTcm;
     auto Cargmin = CargminTcm;

@@ -18,7 +18,7 @@
 *   optimizations needed
 */
 
-namespace mamtorch_kernel_v3 {
+namespace mamtorch_kernel_v4 {
 
 template <typename scalar_t>
 __global__ void fullyconnected_backward_cuda_kernel(
@@ -82,8 +82,7 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
     at::Tensor B,
     at::Tensor Cgrad,
     at::Tensor Cargmax,
-    at::Tensor Cargmin,
-    double beta)
+    at::Tensor Cargmin)
 {       
     // row-major to column-major + transpose
     const auto ATcm = A;
@@ -118,8 +117,6 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
     
     cudaSetDevice(A.get_device());
     
-    if(beta < 1)
-    {
     fullyconnected_backward_cuda_kernel<float><<<blocks, threads>>>(
         Acuda.data_ptr<float>(),
         Bcuda.data_ptr<float>(),
@@ -129,20 +126,10 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
         Agradcuda.data_ptr<float>(),
         Bgradcuda.data_ptr<float>(),
         M, K, N);
-    }
 
     // swap again A and B
     auto Agrad = Bgradcuda;
     auto Bgrad = Agradcuda;
-
-    // perform backward affine combination with MAC contribution
-    if(beta > 0)
-    {
-        Agrad *= 1-beta;
-        Agrad += at::linalg_matmul(Cgrad, B.transpose(0,1))*beta;
-        Bgrad *= 1-beta;
-        Bgrad += at::linalg_matmul(A.transpose(0,1), Cgrad)*beta;
-    }
 
     return {Agrad, Bgrad};
 }

@@ -114,7 +114,7 @@ class FullyConnected(torch.nn.Module):
         #No need to compute MAC output
         if self.bias is not None:
             C += self.bias.view(1, -1)  # Add bias
-            C = C.view(C_shape)
+        C = C.view(C_shape)
         return C
 
     def __repr__(self):

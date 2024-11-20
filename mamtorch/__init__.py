@@ -1,5 +1,6 @@
 from . import kernel
 from . import nn
+from . import sparse
 
 # backwards compatibility
 
