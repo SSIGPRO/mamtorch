@@ -67,8 +67,6 @@ __global__ void fullyconnected_cuda_kernel(
     float Breg[WPTN];
     union floatint_t accmax[WPTM][WPTN];
     union floatint_t accmin[WPTM][WPTN];
-    union floatint_t argmax[WPTM][WPTN];
-    union floatint_t argmin[WPTM][WPTN];
     
     for(int wi = 0; wi < WPTM; ++wi)
     {
