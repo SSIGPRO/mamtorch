@@ -5,6 +5,10 @@ Pytorch Multiply-And-Max/min repository
 
 **Make sure your torch version is compiled with the same cuda version of your machine and nvcc, otherwise you will not be able to compile the library.**
 
+Ninja installation is highly recommended
+
+    pip install ninja
+
 To compile and install mamtorch library, run
 
     pip install git+https://github.com/SSIGPRO/mamtorch
