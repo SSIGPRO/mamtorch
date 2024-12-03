@@ -17,7 +17,7 @@ from torch.utils.cpp_extension import (
 )
 
 library_name = "mamtorch"
-version = "1.4.3"
+version = "1.5.2"
 
 
 def get_extensions():
@@ -54,21 +54,29 @@ def get_extensions():
     if use_cuda:
         sources += cuda_sources
 
-    # kernel v2
-    extensions_dir_v2 = os.path.join(this_dir, library_name, "kernel/v2/csrc")
-    sources_v2 = list(glob.glob(os.path.join(extensions_dir_v2, "*.cpp")))
-    extensions_cuda_dir_v2 = os.path.join(extensions_dir_v2, "cuda")
-    cuda_sources_v2 = list(glob.glob(os.path.join(extensions_cuda_dir_v2, "*.cu")))
-    if use_cuda:
-        sources_v2 += cuda_sources_v2
+    # # kernel v2
+    # extensions_dir_v2 = os.path.join(this_dir, library_name, "kernel/v2/csrc")
+    # sources_v2 = list(glob.glob(os.path.join(extensions_dir_v2, "*.cpp")))
+    # extensions_cuda_dir_v2 = os.path.join(extensions_dir_v2, "cuda")
+    # cuda_sources_v2 = list(glob.glob(os.path.join(extensions_cuda_dir_v2, "*.cu")))
+    # if use_cuda:
+    #     sources_v2 += cuda_sources_v2
+
+    # # kernel v3
+    # extensions_dir_v3 = os.path.join(this_dir, library_name, "kernel/v3/csrc")
+    # sources_v3 = list(glob.glob(os.path.join(extensions_dir_v3, "*.cpp")))
+    # extensions_cuda_dir_v3 = os.path.join(extensions_dir_v3, "cuda")
+    # cuda_sources_v3 = list(glob.glob(os.path.join(extensions_cuda_dir_v3, "*.cu")))
+    # if use_cuda:
+    #     sources_v3 += cuda_sources_v3
 
     # kernel v3
-    extensions_dir_v3 = os.path.join(this_dir, library_name, "kernel/v3/csrc")
-    sources_v3 = list(glob.glob(os.path.join(extensions_dir_v3, "*.cpp")))
-    extensions_cuda_dir_v3 = os.path.join(extensions_dir_v3, "cuda")
-    cuda_sources_v3 = list(glob.glob(os.path.join(extensions_cuda_dir_v3, "*.cu")))
+    extensions_dir_v4 = os.path.join(this_dir, library_name, "kernel/v4/csrc")
+    sources_v4 = list(glob.glob(os.path.join(extensions_dir_v4, "*.cpp")))
+    extensions_cuda_dir_v4 = os.path.join(extensions_dir_v4, "cuda")
+    cuda_sources_v4 = list(glob.glob(os.path.join(extensions_cuda_dir_v4, "*.cu")))
     if use_cuda:
-        sources_v3 += cuda_sources_v3
+        sources_v4 += cuda_sources_v4
 
     # sparse kernel v1
     extensions_dir_sparsev1 = os.path.join(this_dir, library_name, "sparse/kernel/v1/csrc")
@@ -85,15 +93,21 @@ def get_extensions():
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
         ),
+        # extension(
+        #     f"{library_name}.kernel.v2._C",
+        #     sources_v2,
+        #     extra_compile_args=extra_compile_args,
+        #     extra_link_args=extra_link_args,
+        # ),
+        # extension(
+        #     f"{library_name}.kernel.v3._C",
+        #     sources_v3,
+        #     extra_compile_args=extra_compile_args,
+        #     extra_link_args=extra_link_args,
+        # ),
         extension(
-            f"{library_name}.kernel.v2._C",
-            sources_v2,
-            extra_compile_args=extra_compile_args,
-            extra_link_args=extra_link_args,
-        ),
-        extension(
-            f"{library_name}.kernel.v3._C",
-            sources_v3,
+            f"{library_name}.kernel.v4._C",
+            sources_v4,
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
         ),

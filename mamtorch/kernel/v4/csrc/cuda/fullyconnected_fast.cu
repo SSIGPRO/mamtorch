@@ -26,23 +26,19 @@
 * - the use of transposition and padding introduce negligible delay
 */
 
-namespace mamtorch_kernel_v3 {
+namespace mamtorch_kernel_v4 {
 
-__global__ void fullyconnected_cuda_kernel(
+__global__ void fullyconnected_fast_cuda_kernel(
     const float * __restrict__ A,
     const float * __restrict__ BT,
     float * __restrict__ C,
-    int * __restrict__ Cargmax,
-    int * __restrict__ Cargmin,
     int M,
     int K,
     int N);
 
-std::vector<at::Tensor> fullyconnected_cuda(
+at::Tensor fullyconnected_fast_cuda(
     at::Tensor A,
-    at::Tensor B,
-    at::Tensor bias,
-    double beta)
+    at::Tensor B)
 {   
     cudaSetDevice(A.get_device()); // set GPU number
     
@@ -52,10 +48,6 @@ std::vector<at::Tensor> fullyconnected_cuda(
     const auto BTcm = B;
     // generate output matrix
     auto CTcm = at::empty({A.size(0), B.size(1)}, A.options());
-    auto CargmaxTcm = at::empty({A.size(0), B.size(1)}, A.options());
-    CargmaxTcm = CargmaxTcm.to(torch::kInt32);
-    auto CargminTcm = at::empty({A.size(0), B.size(1)}, A.options());
-    CargminTcm = CargminTcm.to(torch::kInt32);
 
     // cuda matrices (A and B are swapped)
     auto Acuda = BTcm;
@@ -70,6 +62,7 @@ std::vector<at::Tensor> fullyconnected_cuda(
     // declare padded tensors
     at::Tensor A_padded = Acuda;
     at::Tensor BT_padded = BT;
+    at::Tensor C_padded = CTcm;
     
     // evaluate padding to have matrix size multiple of BSM, BN, BSK
     int M_rest = M%BSM;
@@ -114,11 +107,10 @@ std::vector<at::Tensor> fullyconnected_cuda(
     }
     
     // generate padded output matrix
-    auto C_padded = at::zeros({N_padded, M_padded}, A.options());
-    auto Cargmax_padded = at::zeros({N_padded, M_padded}, A.options());
-    auto Cargmin_padded = at::zeros({N_padded, M_padded}, A.options());
-    Cargmax_padded = Cargmax_padded.to(torch::kInt32);
-    Cargmin_padded = Cargmin_padded.to(torch::kInt32);
+    if(M_rest || N_rest)
+    {
+        C_padded = at::empty({N_padded, M_padded}, CTcm.options());
+    }
     
     const dim3 threads(RBSM,
                        RBSN,
@@ -126,40 +118,22 @@ std::vector<at::Tensor> fullyconnected_cuda(
     const dim3 blocks(M_padded/BSM,
                       N_padded/BSN,
                       1);
-    
-    if(beta < 1)
+
+    fullyconnected_fast_cuda_kernel<<<blocks, threads>>>(
+        A_padded.data_ptr<float>(),
+        BT_padded.data_ptr<float>(),
+        C_padded.data_ptr<float>(),
+        M_padded, K_padded, N_padded);
+
+    if(M_rest || N_rest)
     {
-        fullyconnected_cuda_kernel<<<blocks, threads>>>(
-            A_padded.data_ptr<float>(),
-            BT_padded.data_ptr<float>(),
-            C_padded.data_ptr<float>(),
-            Cargmax_padded.data_ptr<int>(),
-            Cargmin_padded.data_ptr<int>(),
-            M_padded, K_padded, N_padded);
+        CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
     }
 
-    CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
-    CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
-    CargminTcm.copy_(Cargmin_padded.slice(0, 0, N).slice(1, 0, M));
-
-    // transposed column-major to row-major -> identity
+    // transposed column-major to row-major
     auto C = CTcm;
-    auto Cargmax = torch::clamp(CargmaxTcm, 0, K-1);
-    auto Cargmin = torch::clamp(CargminTcm, 0, K-1);
-    // NOTE: clamping is fundamental for the approximated computing kernel
-    // when the maximum/minimum value is the last one, since padding is
-    // performed with "replicate" option
 
-    // perform affine combination with MAC contribution
-    if(beta > 0)
-    {
-        C *= 1-beta;
-        C += at::linalg_matmul(A, B)*beta;
-    }
-    // add bias
-    C += bias;
-
-    return {C, Cargmax, Cargmin};
+    return C;
 }
 
 } // end namespace mamtorch_kernel

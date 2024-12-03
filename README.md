@@ -3,15 +3,29 @@ Pytorch Multiply-And-Max/min repository
 
 ## Setup instructions
 
+**Make sure your torch version is compiled with the same cuda version of your machine and nvcc, otherwise you will not be able to compile the library.**
+
+Ninja installation is highly recommended
+
+    pip install ninja
+
 To compile and install mamtorch library, run
+
+    pip install git+https://github.com/SSIGPRO/mamtorch
+
+To compile and install the latest work-in-progress library, run
+
+    pip install git+https://github.com/SSIGPRO/mamtorch@develop
+
+Otherwise, you can download the repository and run
 
     pip install .
 
-in the root folder.
+in the repository's root folder.
 
-Important: make sure your torch version is compiled with the same cuda version of your machine, otherwise you will not be able to compile the library.
+Note: installation may take some time since nvcc must compile the kernels for the machine in use.
 
-Latest tested torch version: 2.4.0+cu118
+Latest tested torch version: 2.5.0+cu126
 
 ## Original paper:
 Prono, Luciano; Bich, Philippe; Boretti, Chiara; Mangia, Mauro; Pareschi, Fabio; Rovatti, Riccardo; Setti, Gianluca (2023). A Multiply-And-Max/min Neuron Paradigm for Aggressively Prunable Deep Neural Networks. TechRxiv. Preprint. https://doi.org/10.36227/techrxiv.22561567.v2

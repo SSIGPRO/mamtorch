@@ -26,7 +26,7 @@
 * - the use of transposition and padding introduce negligible delay
 */
 
-namespace mamtorch_kernel_v3 {
+namespace mamtorch_kernel_v4 {
 
 __global__ void fullyconnected_cuda_kernel(
     const float * __restrict__ A,
@@ -40,9 +40,7 @@ __global__ void fullyconnected_cuda_kernel(
 
 std::vector<at::Tensor> fullyconnected_cuda(
     at::Tensor A,
-    at::Tensor B,
-    at::Tensor bias,
-    double beta)
+    at::Tensor B)
 {   
     cudaSetDevice(A.get_device()); // set GPU number
     
@@ -127,16 +125,13 @@ std::vector<at::Tensor> fullyconnected_cuda(
                       N_padded/BSN,
                       1);
     
-    if(beta < 1)
-    {
-        fullyconnected_cuda_kernel<<<blocks, threads>>>(
-            A_padded.data_ptr<float>(),
-            BT_padded.data_ptr<float>(),
-            C_padded.data_ptr<float>(),
-            Cargmax_padded.data_ptr<int>(),
-            Cargmin_padded.data_ptr<int>(),
-            M_padded, K_padded, N_padded);
-    }
+    fullyconnected_cuda_kernel<<<blocks, threads>>>(
+        A_padded.data_ptr<float>(),
+        BT_padded.data_ptr<float>(),
+        C_padded.data_ptr<float>(),
+        Cargmax_padded.data_ptr<int>(),
+        Cargmin_padded.data_ptr<int>(),
+        M_padded, K_padded, N_padded);
 
     CTcm.copy_(C_padded.slice(0, 0, N).slice(1, 0, M));
     CargmaxTcm.copy_(Cargmax_padded.slice(0, 0, N).slice(1, 0, M));
@@ -149,15 +144,6 @@ std::vector<at::Tensor> fullyconnected_cuda(
     // NOTE: clamping is fundamental for the approximated computing kernel
     // when the maximum/minimum value is the last one, since padding is
     // performed with "replicate" option
-
-    // perform affine combination with MAC contribution
-    if(beta > 0)
-    {
-        C *= 1-beta;
-        C += at::linalg_matmul(A, B)*beta;
-    }
-    // add bias
-    C += bias;
 
     return {C, Cargmax, Cargmin};
 }
