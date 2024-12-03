@@ -65,7 +65,6 @@ class FullyConnected(Module):
         self.min_selection_count = None
         self.argmax = None
         self.argmin = None
-        
         self.reset_parameters()
         
     def reset_parameters(self) -> None:
@@ -108,14 +107,23 @@ class FullyConnected(Module):
                 
             if self.max_selection_count is None or self.min_selection_count is None:
                 self.reset_selection_count()
-                
-            num_rows, num_cols = self.argmax.shape
-            col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
-            self.max_selection_count[col_indices, self.argmax.flatten()] += 1
             
-            num_rows, num_cols = self.argmin.shape
-            col_indices = torch.arange(num_cols).repeat(num_rows).to(self.weight.device)
-            self.max_selection_count[col_indices, self.argmin.flatten()] += 1
+            
+            w = self.weight.T.contiguous()
+            max_tmp, min_tmp=K.v3.selection_count(w, self.argmax, self.argmin)
+            self.max_selection_count += max_tmp.T 
+            self.min_selection_count += min_tmp.T
+
+            """
+                num_rows, num_cols = self.argmax.shape
+                for j in range(num_cols):
+                    col_matrix=self.argmax[:,j]
+                    self.max_selection_count[j,:]+=torch.bincount(col_matrix, minlength = self.weight.shape[1])
+
+                    col_matrix=self.argmin[:,j]
+                    self.min_selection_count[j,:]+=torch.bincount(col_matrix, minlength = self.weight.shape[1])
+            """
+
         else:
             raise Exception("MAM layer has not been set to store max and min arguments (store_args is False). Do not use update_selection_count()")
         
@@ -128,7 +136,6 @@ class FullyConnected(Module):
         input_flat = input.view(-1, input.size()[-1])
         
         w = self.weight.T.contiguous()
-        
         if self.training:
             if self.wdrop_rate != 0:
                 if self.wdrop_rate > 0 and self.wdrop_rate < 1:

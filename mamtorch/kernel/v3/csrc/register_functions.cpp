@@ -25,18 +25,25 @@ std::vector<at::Tensor> fullyconnected_backward(
     at::Tensor Cargmin,
     double beta);
 
+std::vector<at::Tensor> selection_count(
+    at::Tensor A,
+    at::Tensor Cargmax,
+    at::Tensor Cargmin);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}
 
 TORCH_LIBRARY(mamtorch_kernel_v3, m) {
     m.def("fullyconnected(Tensor a, Tensor b, Tensor bias, float beta) -> Tensor[]");
     m.def("fullyconnected_fast(Tensor a, Tensor b, Tensor bias, float beta) -> Tensor");
     m.def("fullyconnected_backward(Tensor a, Tensor b, Tensor grad, Tensor argmax, Tensor argmin, float beta) -> Tensor[]");
+    m.def("selection_count(Tensor a, Tensor argmax, Tensor argmin) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(mamtorch_kernel_v3, CPU, m) {
     m.impl("fullyconnected", &fullyconnected);
     m.impl("fullyconnected_fast", &fullyconnected_fast);
     m.impl("fullyconnected_backward", &fullyconnected_backward);
+    m.impl("selection_count", &selection_count);
 }
 
 } // end namespace mamtorch
