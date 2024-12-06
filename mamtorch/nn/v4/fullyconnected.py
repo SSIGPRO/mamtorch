@@ -25,7 +25,7 @@ class FullyConnected(Module):
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
         vcon_eps: float = 1e-3,
-        vcon_expand: bool = False, # expand maximum and minimum value while reducing the other contributions
+        beta_zero_gain: float = 1.0, # maximum output gain, that is beta_zero_gain*(1-beta)
         wdrop_rate: float = 0,
         drop_rate: float = 0,
         compute_exact = False, # if False, use the approximate computing fast kernel (K.v4), if True, use the exact slower kernel (K.v1)
@@ -44,7 +44,7 @@ class FullyConnected(Module):
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
         self.vcon_eps = vcon_eps
-        self.vcon_expand = vcon_expand
+        self.beta_zero_gain = beta_zero_gain
         self.wdrop_rate = wdrop_rate
         self.drop_rate = drop_rate
         self.compute_exact = compute_exact
@@ -100,9 +100,7 @@ class FullyConnected(Module):
         if self.beta <= self.vcon_eps:
             self.beta = 0
 
-        self.alpha = 1.0 - self.beta
-        if self.vcon_expand:
-            self.alpha *= self.in_features/(2*self.splits)
+        self.alpha = self.beta_zero_gain*(1.0 - self.beta)
         
     def reset_selection_count(self) -> None:
         if self.store_args:
@@ -213,8 +211,8 @@ class FullyConnected(Module):
             description_string += f", vcon_steps={self.vcon_steps}, vcon_type={self.vcon_type}"
         if self.splits > 1:
             description_string += f", splits={self.splits}"
-        if self.vcon_expand:
-            description_string += ", vcon_expand=True"
+        if self.beta_zero_gain != 1:
+            description_string += f", beta_zero_gain={self.beta_zero_gain}"
         if self.relu_in:
             description_string += ", relu_in=True"
         description_string += ")"
