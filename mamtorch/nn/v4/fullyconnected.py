@@ -183,13 +183,16 @@ class FullyConnected(Module):
                 self.argmin = argmin
             else:
                 C_flat = compute_noargs(input_flat, w)
+
+        # multiply MAM term by a gain
+        C_flat *= self.alpha
         
         # add MAC term
         if self.beta > 0:
             if self.train_mam_only:
-                C_flat = self.alpha*C_flat + self.beta*F.linear(input_flat, self.weight.detach())
+                C_flat = C_flat + self.beta*F.linear(input_flat, self.weight.detach())
             else:
-                C_flat = self.alpha*C_flat + self.beta*F.linear(input_flat, self.weight)
+                C_flat = C_flat + self.beta*F.linear(input_flat, self.weight)
 
         # add bias
         if self.bias is not None:
