@@ -45,6 +45,7 @@ class FullyConnected(Module):
         self.vcon_steps = vcon_steps
         self.vcon_eps = vcon_eps
         self.beta_zero_gain = beta_zero_gain
+        self.fixed_activation_norm = fixed_activation_norm
         self.wdrop_rate = wdrop_rate
         self.drop_rate = drop_rate
         self.compute_exact = compute_exact
@@ -72,6 +73,9 @@ class FullyConnected(Module):
         self.min_selection_count = None
         self.argmax = None
         self.argmin = None
+        
+        self.norm_mean = None
+        self.norm_var = None
         
         self.reset_parameters()
         
@@ -127,6 +131,10 @@ class FullyConnected(Module):
             self.max_selection_count[col_indices, self.argmin.flatten()] += 1
         else:
             raise Exception("MAM layer has not been set to store max and min arguments (store_args is False). Do not use update_selection_count()")
+        
+    def set_fixated_norm(self, mean, var):
+        self.norm_mean = mean
+        self.norm_var = var
         
     def forward(self, input: Tensor) -> Tensor:
         # apply relu to input if requested
@@ -205,6 +213,9 @@ class FullyConnected(Module):
         # output dropout
         if self.drop_rate > 0:
             C = torch.nn.functional.dropout(C, self.drop_rate, self.training)
+
+        # if self.norm_mean is not None:
+        #     C = C/torch.norm(C)
 
         return C
 

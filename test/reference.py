@@ -1,13 +1,21 @@
 import torch
 
-def fullyconnected_reference(a, b, bias=0.0, beta=0):
-    v = a[:,:,None]*b
-    valmax, argmax = torch.max(v, axis=-2)
-    valmin, argmin = torch.min(v, axis=-2)
+def fullyconnected_reference(a, b, accblock_size=1):
+    rows_to_pad = (accblock_size - (b.size(0) % accblock_size)) % accblock_size
+    a_padded = torch.nn.functional.pad(a, (0, rows_to_pad, 0, 0))
+    b_padded = torch.nn.functional.pad(b, (0, 0, 0, rows_to_pad))
 
-    y = a@b*beta + (valmax+valmin)*(1.0-beta) + bias
+    N = b_padded.shape[0]//accblock_size
+    a_batched = a_padded.T.view(N, -1, a_padded.size(0)).transpose(1, 2)
+    b_batched = b_padded.view(N, -1, b_padded.size(1))
 
-    return y, argmax, argmin
+    # Perform batched matrix multiplication: (N, A_rows, columns) @ (N, columns, rows_per_submatrix)
+    v = torch.bmm(a_batched, b_batched)
+
+    valmax, argmax = torch.max(v, axis=-3)
+    valmin, argmin = torch.min(v, axis=-3)
+
+    return valmax + valmin, argmax, argmin
 
 def fullyconnected_backward_reference(a, b, cgrad, argmax, argmin, beta=0.0):
     # MAC component

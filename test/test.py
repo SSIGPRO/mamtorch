@@ -6,319 +6,130 @@ from reference import fullyconnected_reference, fullyconnected_backward_referenc
 
 device = torch.device("cuda:0")
 
+def test_function(func, ref_func, args, title="", print_outputs=False):
+    print()
+    print(title)
+    print("Operation check")
+    print(torch.library.opcheck(func, args))
+    print("Functionality check")
+    res = func(*args)
+    res_ref = ref_func(*args)
+
+    res = res if isinstance(res, (list, tuple)) else (res,)
+    res_ref = res_ref if isinstance(res_ref, (list, tuple)) else (res_ref,)
+
+    if print_outputs:
+        print("Outputs")
+        for r in res:
+            print()
+            print(r)
+        print("Expected outputs")
+        for r in res_ref:
+            print()
+            print(r)
+
+    print("Maximum errors: ", end="")
+    for i in range(len(res)):
+        err = float(torch.max(torch.abs(res[i]-res_ref[i])))
+        print(err, end=" ")
+    print()
+    print("Average errors: ", end="")
+    for i in range(len(res)):
+        err = float(torch.mean(torch.abs(res[i]-res_ref[i]).to(torch.float32)))
+        print(err, end=" ")
+    print()
+    print("Minimum errors: ", end="")
+    for i in range(len(res)):
+        err = float(torch.min(torch.abs(res[i]-res_ref[i])))
+        print(err, end=" ")
+    print()
+
+test_iterations = 1000
+
+def benchmark_kernel(func, arg_sizes, arg_types, arg_mins=None, arg_maxs=None, arg_value=None, title=""):
+    print()
+    print(title)
+    print("Elapsed time benchmark")
+    total_time = 0
+    for i in range(test_iterations):
+        args = []
+        for i in range(len(arg_sizes)):
+            if arg_value is not None and arg_value[i] is not None:
+                args += [arg_value[i]]
+            elif arg_sizes[i] == 1:
+                args += [0]
+            else:
+                if arg_types[i] == "int":
+                    args += [torch.randint(arg_mins[i], arg_maxs[i], arg_sizes[i], dtype=torch.int32, device=device)]
+                else:
+                    args += [torch.randn(arg_sizes[i], device=device)]
+        tic = time.perf_counter()
+        res = func(*args)
+        torch.cuda.synchronize()
+        toc = time.perf_counter()
+        total_time += toc-tic
+    print(f"Average time {total_time/test_iterations*1000} ms")
+    
+
 print("__________________________")
 print("Random functionality check")
 
+print_outputs = True
 n = random.randint(10, 1000)
 m = random.randint(10, 1000)
 l = random.randint(10, 1000)
+n, m, l = 1, 8, 1
 a = torch.randn((n, m), dtype=torch.float32, device=device)
 b = torch.randn((m, l), dtype=torch.float32, device=device)
 c = torch.randn((n, l), dtype=torch.float32, device=device)
-bias = torch.randn((l,), dtype=torch.float32, device=device)
-beta = random.uniform(0, 1)
+a = torch.tensor([[1, 2, 3, 4, 5, 6, 7, 8]], dtype=torch.float32, device=device)
+b = torch.tensor([[1],[2],[3],[4],[-1],[-2],[-3],[-4]], dtype=torch.float32, device=device)
+argmax = torch.randint(0, m, (n, l), dtype=torch.int32, device=device)
+argmin = torch.randint(0, m, (n, l), dtype=torch.int32, device=device)
 print("Shape of A:", a.shape)
 print("Shape of B:", b.shape)
-print("Shape of bias:", bias.shape)
-print("Beta value:", beta)
+if print_outputs:
+    print("a matrix")
+    print(a)
+    print("b matrix")
+    print(b)
 
-print()
-print("Test kernel v1: fullyconnected")
-print("Operation check")
-print(torch.library.opcheck(torch.ops.mamtorch_kernel_v1.fullyconnected, (a, b)))
-print("Functionality check")
-res, argmax, argmin = torch.ops.mamtorch_kernel_v1.fullyconnected(a, b)
-res_ref, argmax_ref, argmin_ref = fullyconnected_reference(a, b)
-res_err = float(torch.max(torch.abs(res-res_ref)))
-argmax_err = float(torch.max(torch.abs(argmax-argmax_ref)))
-argmin_err = float(torch.max(torch.abs(argmin-argmin_ref)))
-print(f"Errors {res_err} {argmax_err} {argmin_err}")
+# kernel v1
+# test_function(torch.ops.mamtorch_kernel_v1.fullyconnected, fullyconnected_reference, (a, b), "Test kernel v1: fullyconnected", print_outputs)
 
-print()
-print("Test kernel v2: fullyconnected")
-print("Operation check")
-print(torch.ops.mamtorch_kernel_v2.fullyconnected(a, b, bias, beta)[0].shape)
-print(torch.library.opcheck(torch.ops.mamtorch_kernel_v2.fullyconnected, (a, b, bias, beta)))
-print("Functionality check")
-res, argmax, argmin = torch.ops.mamtorch_kernel_v2.fullyconnected(a, b, bias, beta)
-res_ref, argmax_ref, argmin_ref = fullyconnected_reference(a, b, bias, beta)
-res_err = float(torch.max(torch.abs(res-res_ref)))
-argmax_err = float(torch.max(torch.abs(argmax-argmax_ref)))
-argmin_err = float(torch.max(torch.abs(argmin-argmin_ref)))
-print(f"Errors {res_err} {argmax_err} {argmin_err}")
+# # kernel v4
+# test_function(torch.ops.mamtorch_kernel_v4.fullyconnected, fullyconnected_reference, (a, b), "Test kernel v4: fullyconnected", print_outputs)
+# test_function(torch.ops.mamtorch_kernel_v4.fullyconnected_fast, fullyconnected_reference, (a, b), "Test kernel v4: fullyconnected_fast", print_outputs)
+# test_function(torch.ops.mamtorch_kernel_v4.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin), "Test kernel v4: fullyconnected_backward", print_outputs)
 
-i = 0
-for arg, argtrue in zip(argmax.flatten().cpu().numpy(), argmax.flatten().cpu().numpy()):
-    if arg > m or arg < 0:
-        i += 1
-        print(arg, argtrue, i, end=" | ")
-
-print()
-i = 0
-for arg, argtrue in zip(argmin.flatten().cpu().numpy(), argmin.flatten().cpu().numpy()):
-    if arg > m or arg < 0:
-        i += 1
-        print(arg, argtrue, i, end=" | ")
-print()
-
-print()
-print("Test kernel v2: dense")
-print("Functionality check")
-res = torch.ops.mamtorch_kernel_v2.dense(a, b)
-res_ref = a@b
-res_err = float(torch.max(torch.abs(res-res_ref)))
-print(f"Errors {res_err}")
-
-print()
-print("Test kernel v2: fullyconnected_backwards")
-print("Functionality check")
-agrad_res, bgrad_res = torch.ops.mamtorch_kernel_v2.fullyconnected_backward(a, b, c, argmax, argmin, beta)
-agrad_res_ref, bgrad_res_ref = fullyconnected_backward_reference(a, b, c, argmax, argmin, beta)
-print(f"Max errors {torch.max(torch.abs(agrad_res-agrad_res_ref))} {torch.max(torch.abs(bgrad_res-bgrad_res_ref))}")
-
-print()
-print("Test kernel v3: fullyconnected")
-print("Operation check")
-print(torch.library.opcheck(torch.ops.mamtorch_kernel_v3.fullyconnected, (a, b, bias, beta)))
-print("Functionality check")
-res, argmax, argmin = torch.ops.mamtorch_kernel_v3.fullyconnected(a, b, bias, beta)
-res_ref, argmax_ref, argmin_ref = fullyconnected_reference(a, b, bias, beta)
-res_err = torch.abs(res-res_ref)
-argmax_err = torch.abs(argmax-argmax_ref).to(torch.float)
-argmin_err = torch.abs(argmin-argmin_ref).to(torch.float)
-#for re, val in zip(argmax_err.flatten().cpu().numpy(), res_err.flatten().cpu().numpy()):
-#    if re > 0:
-#        print(f"arg_err {re:5}, val_err {val:5}")
-print(f"Max error {float(torch.max(res_err))}")
-print(f"Mean error {float(torch.mean(res_err))}")
-print(f"Min error {float(torch.min(res_err))}")
-#print(f"Mean arg errors {float(torch.mean(argmax_err))} {float(torch.mean(argmin_err))}")
-total_occurrencies = argmax_err.shape[0]*argmax_err.shape[1]
-print(f"Wrong arg total occurrencies {torch.sum(argmax_err>0)}/{total_occurrencies} {torch.sum(argmin_err>0)}/{total_occurrencies}")
-
-i = 0
-for arg, argtrue in zip(argmax.flatten().cpu().numpy(), argmax_ref.flatten().cpu().numpy()):
-    if arg > m or arg < 0:
-        i += 1
-        print(arg, argtrue, i, end=" | ")
-
-print()
-i = 0
-for arg, argtrue in zip(argmin.flatten().cpu().numpy(), argmin_ref.flatten().cpu().numpy()):
-    if arg > m or arg < 0:
-        i += 1
-        print(arg, argtrue, i, end=" | ")
-print()
-
-print()
-print("Test kernel v3: fullyconnected_fast")
-print("Operation check")
-print(torch.library.opcheck(torch.ops.mamtorch_kernel_v3.fullyconnected_fast, (a, b, bias, beta)))
-print("Functionality check")
-res = torch.ops.mamtorch_kernel_v3.fullyconnected_fast(a, b, bias, beta)
-res_ref, _, _ = fullyconnected_reference(a, b, bias, beta)
-res_err = float(torch.max(torch.abs(res-res_ref)))
-print(f"Max errors {res_err}")
-
-print()
-print("Test kernel v3: fullyconnected_backwards")
-print("Functionality check")
-agrad_res, bgrad_res = torch.ops.mamtorch_kernel_v3.fullyconnected_backward(a, b, c, argmax, argmin, beta)
-agrad_res_ref, bgrad_res_ref = fullyconnected_backward_reference(a, b, c, argmax, argmin, beta)
-print(f"Max errors {torch.max(torch.abs(agrad_res-agrad_res_ref))} {torch.max(torch.abs(bgrad_res-bgrad_res_ref))}")
-
-
-print()
-print("Test kernel v4: fullyconnected")
-print("Operation check")
-print(torch.library.opcheck(torch.ops.mamtorch_kernel_v4.fullyconnected, (a, b)))
-print("Functionality check")
-res, argmax, argmin = torch.ops.mamtorch_kernel_v4.fullyconnected(a, b)
-res_ref, argmax_ref, argmin_ref = fullyconnected_reference(a, b)
-res_err = torch.abs(res-res_ref)
-argmax_err = torch.abs(argmax-argmax_ref).to(torch.float)
-argmin_err = torch.abs(argmin-argmin_ref).to(torch.float)
-#for re, val in zip(argmax_err.flatten().cpu().numpy(), res_err.flatten().cpu().numpy()):
-#    if re > 0:
-#        print(f"arg_err {re:5}, val_err {val:5}")
-print(f"Max error {float(torch.max(res_err))}")
-print(f"Mean error {float(torch.mean(res_err))}")
-print(f"Min error {float(torch.min(res_err))}")
-#print(f"Mean arg errors {float(torch.mean(argmax_err))} {float(torch.mean(argmin_err))}")
-total_occurrencies = argmax_err.shape[0]*argmax_err.shape[1]
-print(f"Wrong arg total occurrencies {torch.sum(argmax_err>0)}/{total_occurrencies} {torch.sum(argmin_err>0)}/{total_occurrencies}")
-
-i = 0
-for arg, argtrue in zip(argmax.flatten().cpu().numpy(), argmax_ref.flatten().cpu().numpy()):
-    if arg > m or arg < 0:
-        i += 1
-        print(arg, argtrue, i, end=" | ")
-
-print()
-i = 0
-for arg, argtrue in zip(argmin.flatten().cpu().numpy(), argmin_ref.flatten().cpu().numpy()):
-    if arg > m or arg < 0:
-        i += 1
-        print(arg, argtrue, i, end=" | ")
-print()
-
-print()
-print("Test kernel v4: fullyconnected_fast")
-print("Operation check")
-print(torch.library.opcheck(torch.ops.mamtorch_kernel_v4.fullyconnected_fast, (a, b)))
-print("Functionality check")
-res = torch.ops.mamtorch_kernel_v4.fullyconnected_fast(a, b)
-res_ref, _, _ = fullyconnected_reference(a, b)
-res_err = float(torch.max(torch.abs(res-res_ref)))
-print(f"Max errors {res_err}")
-
-print()
-print("Test kernel v4: fullyconnected_backwards")
-print("Functionality check")
-agrad_res, bgrad_res = torch.ops.mamtorch_kernel_v4.fullyconnected_backward(a, b, c, argmax, argmin)
-agrad_res_ref, bgrad_res_ref = fullyconnected_backward_reference(a, b, c, argmax, argmin)
-print(f"Max errors {torch.max(torch.abs(agrad_res-agrad_res_ref))} {torch.max(torch.abs(bgrad_res-bgrad_res_ref))}")
-
+# kernel v5
+#accblock_size_list = [1, 32, 64]
+accblock_size_list = [1, 4]
+for accblock_size in accblock_size_list:
+    test_function(torch.ops.mamtorch_kernel_v5.fullyconnected, fullyconnected_reference, (a, b, accblock_size), f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})", print_outputs)
 
 print("__________________________")
 print("Benchmarks")
 
-n, l, m = 128, 4096, 2048
+n, l, m = 128, 3072, 768
 
-test_iterations = 1000
+benchmark_kernel(torch.matmul, [(n, m), (m, l)], ['float', 'float'], title="Baseline: torch.matmul")
 
-print("Torch matmul")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    tic = time.perf_counter()
-    res = torch.matmul(a, b)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
+# kernel v1
+benchmark_kernel(torch.ops.mamtorch_kernel_v1.fullyconnected, [(n, m), (m, l)], ['float', 'float'], title="Test kernel v1: fullyconnected")
 
-print("Test kernel v1: fullyconnected")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    tic = time.perf_counter()
-    res, argmax, argmin = torch.ops.mamtorch_kernel_v1.fullyconnected(a, b)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
-    
+# kernel v4
+benchmark_kernel(torch.ops.mamtorch_kernel_v4.fullyconnected, [(n, m), (m, l)], ['float', 'float'], title="Test kernel v4: fullyconnected")
+benchmark_kernel(torch.ops.mamtorch_kernel_v4.fullyconnected_fast, [(n, m), (m, l)], ['float', 'float'], title="Test kernel v4: fullyconnected_fast")
+benchmark_kernel(torch.ops.mamtorch_kernel_v4.fullyconnected_backward, [(n, m), (m, l), (n, l), (n, l), (n, l)],
+                                                                       ['float', 'float', 'float', 'int', 'int'],
+                                                                       [0, 0, 0, 0, 0],
+                                                                       [0, 0, 0, m, m],
+                                                                       title="Test kernel v4: fullyconnected_backward")
 
-print("Test kernel v2: fullyconnected")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    bias = torch.randn((l,), device=device)
-    beta = 0#random.uniform(0, 1)
-    tic = time.perf_counter()
-    res, argmax, argmin = torch.ops.mamtorch_kernel_v2.fullyconnected(a, b, bias, beta)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
+# kernel v5
+accblock_size_list = [1, 4]
+for accblock_size in accblock_size_list:
+    benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected, [(n, m), (m, l), 1], ['float', 'float', 'int'], [0, 0, 0], [0, 0, 0], [None, None, accblock_size], title=f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})")
 
-print("Test kernel v2: dense")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    tic = time.perf_counter()
-    res = torch.ops.mamtorch_kernel_v2.dense(a, b)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
-
-
-print("Test kernel v3: fullyconnected")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    bias = torch.randn((l,), device=device)
-    beta = 0#random.uniform(0, 1)
-    tic = time.perf_counter()
-    res, argmax, argmin = torch.ops.mamtorch_kernel_v3.fullyconnected(a, b, bias, beta)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
-
-print("Test kernel v3: fullyconnected_fast")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    bias = torch.randn((l,), device=device)
-    beta = 0#random.uniform(0, 1)
-    tic = time.perf_counter()
-    res = torch.ops.mamtorch_kernel_v3.fullyconnected_fast(a, b, bias, beta)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
-
-print("Test kernel v3: fullyconnected_backward")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    c = torch.randn((n, l), device=device)
-    argmax = torch.randint(0, m-1, (n, l), dtype=torch.int32, device=device)
-    argmin = torch.randint(0, m-1, (n, l), dtype=torch.int32, device=device)
-    beta = 0#random.uniform(0, 1)
-    tic = time.perf_counter()
-    agrad_res, bgrad_res = torch.ops.mamtorch_kernel_v3.fullyconnected_backward(a, b, c, argmax, argmin, beta)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
-
-print("Test kernel v4: fullyconnected")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    tic = time.perf_counter()
-    res, argmax, argmin = torch.ops.mamtorch_kernel_v4.fullyconnected(a, b)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
-
-print("Test kernel v4: fullyconnected_fast")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    tic = time.perf_counter()
-    res = torch.ops.mamtorch_kernel_v4.fullyconnected_fast(a, b)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
-
-print("Test kernel v4: fullyconnected_backward")
-total_time = 0
-for i in range(test_iterations):
-    a = torch.randn((n, m), device=device)
-    b = torch.randn((m, l), device=device)
-    c = torch.randn((n, l), device=device)
-    argmax = torch.randint(0, m-1, (n, l), dtype=torch.int32, device=device)
-    argmin = torch.randint(0, m-1, (n, l), dtype=torch.int32, device=device)
-    tic = time.perf_counter()
-    agrad_res, bgrad_res = torch.ops.mamtorch_kernel_v4.fullyconnected_backward(a, b, c, argmax, argmin)
-    torch.cuda.synchronize()
-    toc = time.perf_counter()
-    total_time += toc-tic
-print(f"Average time {total_time/test_iterations*1000} ms")
     
