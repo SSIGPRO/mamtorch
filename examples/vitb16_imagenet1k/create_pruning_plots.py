@@ -13,7 +13,7 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Pruning script with MAM layers configuration')
-    parser.add_argument('--mam_layers_num', type=int, required=True,
+    parser.add_argument('--mam_layers_num', type=int, default=-10,
                       help='Number of MAM layers (positive: start from input, negative: start from output)')
     parser.add_argument('--full_pruning', action='store_true', help='Enable full pruning mode')
     return parser.parse_args()

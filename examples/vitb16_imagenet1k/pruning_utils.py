@@ -18,7 +18,7 @@ def load_model(starting_model, use_mam, mam_layers_num, num_classes, verbose=Fal
         ignore_mismatched_sizes=True,
         num_labels=num_classes,
     )
-    layers_str = generate_paths(use_mam, use_mam, False, layers_number=mam_layers_num)
+    layers_str = generate_paths(False, False, use_mam, use_mam, layers_number=mam_layers_num)
     model = add_mam_to_ViT(model, layers_str)
     mam_layers = get_layers(model, layers_str)
 
