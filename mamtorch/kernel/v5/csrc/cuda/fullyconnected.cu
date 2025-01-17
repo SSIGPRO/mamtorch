@@ -7,6 +7,8 @@
 #include <vector>
 #include <limits>
 
+#include <iostream>
+
 #include <stdexcept>
 
 #define BSM 64 // block size along M
@@ -50,25 +52,45 @@ __global__ void fullyconnected_cuda_kernel_acc4(
     int K,
     int N);
 
-// __global__ void fullyconnected_cuda_kernel_acc32(
-//     const float * __restrict__ A,
-//     const float * __restrict__ BT,
-//     float * __restrict__ C,
-//     int * __restrict__ Cargmax,
-//     int * __restrict__ Cargmin,
-//     int M,
-//     int K,
-//     int N);
+__global__ void fullyconnected_cuda_kernel_acc8(
+    const float * __restrict__ A,
+    const float * __restrict__ BT,
+    float * __restrict__ C,
+    int * __restrict__ Cargmax,
+    int * __restrict__ Cargmin,
+    int M,
+    int K,
+    int N);
 
-// __global__ void fullyconnected_cuda_kernel_acc64(
-//     const float * __restrict__ A,
-//     const float * __restrict__ BT,
-//     float * __restrict__ C,
-//     int * __restrict__ Cargmax,
-//     int * __restrict__ Cargmin,
-//     int M,
-//     int K,
-//     int N);
+__global__ void fullyconnected_cuda_kernel_acc16(
+    const float * __restrict__ A,
+    const float * __restrict__ BT,
+    float * __restrict__ C,
+    int * __restrict__ Cargmax,
+    int * __restrict__ Cargmin,
+    int M,
+    int K,
+    int N);
+
+__global__ void fullyconnected_cuda_kernel_acc32(
+    const float * __restrict__ A,
+    const float * __restrict__ BT,
+    float * __restrict__ C,
+    int * __restrict__ Cargmax,
+    int * __restrict__ Cargmin,
+    int M,
+    int K,
+    int N);
+
+__global__ void fullyconnected_cuda_kernel_acc64(
+    const float * __restrict__ A,
+    const float * __restrict__ BT,
+    float * __restrict__ C,
+    int * __restrict__ Cargmax,
+    int * __restrict__ Cargmin,
+    int M,
+    int K,
+    int N);
 
 std::vector<at::Tensor> fullyconnected_cuda(
     at::Tensor A,
@@ -133,7 +155,7 @@ std::vector<at::Tensor> fullyconnected_cuda(
     {
         A_padded = at::pad(Acuda.unsqueeze(0),
                            at::IntList{0, M_padding, 0, K_padding},
-                           "replicate").squeeze();
+                           "constant").squeeze();
     }
     
     // pad matrix BT
@@ -141,7 +163,7 @@ std::vector<at::Tensor> fullyconnected_cuda(
     {
         BT_padded = at::pad(BT.unsqueeze(0),
                             at::IntList{0, N_padding, 0, K_padding},
-                            "replicate").squeeze();
+                            "constant").squeeze();
     }
     
     // generate padded output matrix
@@ -170,7 +192,7 @@ std::vector<at::Tensor> fullyconnected_cuda(
                 M_padded, K_padded, N_padded);
             break;
         case 4:
-            fullyconnected_cuda_kernel<<<blocks, threads>>>(
+            fullyconnected_cuda_kernel_acc4<<<blocks, threads>>>(
                 A_padded.data_ptr<float>(),
                 BT_padded.data_ptr<float>(),
                 C_padded.data_ptr<float>(),
@@ -178,24 +200,42 @@ std::vector<at::Tensor> fullyconnected_cuda(
                 Cargmin_padded.data_ptr<int>(),
                 M_padded, K_padded, N_padded);
             break;
-        // case 32:
-        //     fullyconnected_cuda_kernel_acc32<<<blocks, threads>>>(
-        //         A_padded.data_ptr<float>(),
-        //         BT_padded.data_ptr<float>(),
-        //         C_padded.data_ptr<float>(),
-        //         Cargmax_padded.data_ptr<int>(),
-        //         Cargmin_padded.data_ptr<int>(),
-        //         M_padded, K_padded, N_padded);
-        //     break;
-        // case 64:
-        //     fullyconnected_cuda_kernel_acc64<<<blocks, threads>>>(
-        //         A_padded.data_ptr<float>(),
-        //         BT_padded.data_ptr<float>(),
-        //         C_padded.data_ptr<float>(),
-        //         Cargmax_padded.data_ptr<int>(),
-        //         Cargmin_padded.data_ptr<int>(),
-        //         M_padded, K_padded, N_padded);
-        //     break;
+        case 8:
+            fullyconnected_cuda_kernel_acc8<<<blocks, threads>>>(
+                A_padded.data_ptr<float>(),
+                BT_padded.data_ptr<float>(),
+                C_padded.data_ptr<float>(),
+                Cargmax_padded.data_ptr<int>(),
+                Cargmin_padded.data_ptr<int>(),
+                M_padded, K_padded, N_padded);
+            break;
+        case 16:
+            fullyconnected_cuda_kernel_acc16<<<blocks, threads>>>(
+                A_padded.data_ptr<float>(),
+                BT_padded.data_ptr<float>(),
+                C_padded.data_ptr<float>(),
+                Cargmax_padded.data_ptr<int>(),
+                Cargmin_padded.data_ptr<int>(),
+                M_padded, K_padded, N_padded);
+            break;
+        case 32:
+            fullyconnected_cuda_kernel_acc32<<<blocks, threads>>>(
+                A_padded.data_ptr<float>(),
+                BT_padded.data_ptr<float>(),
+                C_padded.data_ptr<float>(),
+                Cargmax_padded.data_ptr<int>(),
+                Cargmin_padded.data_ptr<int>(),
+                M_padded, K_padded, N_padded);
+            break;
+        case 64:
+            fullyconnected_cuda_kernel_acc64<<<blocks, threads>>>(
+                A_padded.data_ptr<float>(),
+                BT_padded.data_ptr<float>(),
+                C_padded.data_ptr<float>(),
+                Cargmax_padded.data_ptr<int>(),
+                Cargmin_padded.data_ptr<int>(),
+                M_padded, K_padded, N_padded);
+            break;
         default:
             throw std::invalid_argument("Invalid size for accumulation blocks");
     }

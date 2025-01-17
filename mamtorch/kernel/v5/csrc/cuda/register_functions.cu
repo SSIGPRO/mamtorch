@@ -19,7 +19,8 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
     at::Tensor B,
     at::Tensor Cgrad,
     at::Tensor Cargmax,
-    at::Tensor Cargmin);
+    at::Tensor Cargmin,
+    int64_t accblock_size);
 
 TORCH_LIBRARY_IMPL(mamtorch_kernel_v5, CUDA, m) {
     m.impl("fullyconnected", &fullyconnected_cuda);

@@ -23,25 +23,27 @@ def _(a, b, accblock_size):
 
 def _backward(ctx, grad):
     a, b, argmax, argmin = ctx.saved_tensors
+    accblock_size = ctx.accblock_size
     a_grad, b_grad = None, None
     if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
-        a_grad, b_grad = K.fullyconnected_backward.default(a, b, grad[0], argmax, argmin)
+        a_grad, b_grad = K.fullyconnected_backward.default(a, b, grad[0], argmax, argmin, accblock_size)
     return a_grad, b_grad, None
 
 def _setup_context(ctx, inputs, output):
-    a, b = inputs
+    a, b, accblock_size = inputs
     _, argmax, argmin = output
     saved_a, saved_b = None, None
     if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
         saved_a = a
         saved_b = b
+    ctx.accblock_size = accblock_size
     ctx.save_for_backward(saved_a, saved_b, argmin, argmax)
 
 torch.library.register_autograd(
     f"{library_name}::fullyconnected", _backward, setup_context=_setup_context)
 
 @torch.library.register_fake(f"{library_name}::fullyconnected_backward")
-def _(a, b, grad, argmax, argmin):
+def _(a, b, grad, argmax, argmin, accblock_size):
     torch._check(a.size(1) == b.size(0))
     torch._check(grad.size(0) == a.size(0))
     torch._check(grad.size(1) == b.size(1))

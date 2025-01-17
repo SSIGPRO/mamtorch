@@ -79,12 +79,12 @@ def get_extensions():
         sources_v4 += cuda_sources_v4
 
     # kernel v5
-    # extensions_dir_v5 = os.path.join(this_dir, library_name, "kernel/v5/csrc")
-    # sources_v5 = list(glob.glob(os.path.join(extensions_dir_v5, "*.cpp")))
-    # extensions_cuda_dir_v5 = os.path.join(extensions_dir_v5, "cuda")
-    # cuda_sources_v5 = list(glob.glob(os.path.join(extensions_cuda_dir_v5, "*.cu")))
-    # if use_cuda:
-    #     sources_v5 += cuda_sources_v5
+    extensions_dir_v5 = os.path.join(this_dir, library_name, "kernel/v5/csrc")
+    sources_v5 = list(glob.glob(os.path.join(extensions_dir_v5, "*.cpp")))
+    extensions_cuda_dir_v5 = os.path.join(extensions_dir_v5, "cuda")
+    cuda_sources_v5 = list(glob.glob(os.path.join(extensions_cuda_dir_v5, "*.cu")))
+    if use_cuda:
+        sources_v5 += cuda_sources_v5
 
     # sparse kernel v1
     extensions_dir_sparsev1 = os.path.join(this_dir, library_name, "sparse/kernel/v1/csrc")
@@ -119,12 +119,12 @@ def get_extensions():
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
         ),
-        # extension(
-        #     f"{library_name}.kernel.v5._C",
-        #     sources_v5,
-        #     extra_compile_args=extra_compile_args,
-        #     extra_link_args=extra_link_args,
-        # ),
+        extension(
+            f"{library_name}.kernel.v5._C",
+            sources_v5,
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+        ),
         extension(
             f"{library_name}.sparse.kernel.v1._C",
             sources_sparsev1,

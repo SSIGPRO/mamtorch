@@ -5,7 +5,7 @@
 #include <vector>
 #include <limits>
 
-#define ACC 4 // accumulation block sizes
+#define ACC 16 // accumulation block sizes
 
 // Macro to concatenate tokens
 #define CONCAT_2_EXPAND(A, B) A ## B
