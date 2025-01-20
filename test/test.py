@@ -75,11 +75,11 @@ print("__________________________")
 print("Random functionality check")
 
 print_outputs = False
-benchmarks = False
+benchmarks = True
 n = random.randint(16, 1000)
 m = random.randint(16, 1000)
 l = random.randint(16, 1000)
-#n, m, l = 4, 4, 4
+#n, m, l = 3, 8, 3
 a = torch.randn((n, m), dtype=torch.float32, device=device)
 b = torch.randn((m, l), dtype=torch.float32, device=device)
 c = torch.randn((n, l), dtype=torch.float32, device=device)
@@ -87,6 +87,14 @@ c = torch.randn((n, l), dtype=torch.float32, device=device)
 #b = torch.tensor([[1, -1],[2, -2],[3, -3],[4, -4],[-1, 1],[-2, 2],[-3, 3],[-4, 4]], dtype=torch.float32, device=device)
 argmax = torch.randint(0, m, (n, l), dtype=torch.int32, device=device)
 argmin = torch.randint(0, m, (n, l), dtype=torch.int32, device=device)
+mask = argmax == argmin
+maxiter = 1000
+while torch.any(mask): # ensure argmax and argmin are different, which is realistic
+    argmin[mask] = torch.randint(0, m, dtype=torch.int32, size=(torch.sum(mask),), device=device)
+    mask = argmax == argmin
+    maxiter -= 1
+    if maxiter == 0:
+        raise Exception("Out of maximum iterations for argmin search")
 print("Shape of A:", a.shape)
 print("Shape of B:", b.shape)
 if print_outputs:
@@ -110,11 +118,12 @@ if print_outputs:
 # test_function(torch.ops.mamtorch_kernel_v4.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin), "Test kernel v4: fullyconnected_backward", print_outputs)
 
 # kernel v5
-# accblock_size_list = [1, 4, 8, 16, 32, 64]
-# for accblock_size in accblock_size_list:
-#     test_function(torch.ops.mamtorch_kernel_v5.fullyconnected, fullyconnected_reference, (a, b, accblock_size), f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})", print_outputs)
-
-test_function(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin, 1), "Test kernel v5: fullyconnected_backward", print_outputs)
+accblock_size_list = [1, 4, 8, 16, 32, 64]
+for accblock_size in accblock_size_list:
+    test_function(torch.ops.mamtorch_kernel_v5.fullyconnected, fullyconnected_reference, (a, b, accblock_size), f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})", print_outputs)
+accblock_size_list = [1, 4, 8, 16, 32, 64]
+for accblock_size in accblock_size_list:
+    test_function(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax//accblock_size, argmin//accblock_size, accblock_size), f"Test kernel v5: fullyconnected_backward (accblock_size = {accblock_size})", print_outputs)
 
 if benchmarks:
     # print("__________________________")
@@ -140,11 +149,13 @@ if benchmarks:
     accblock_size_list = [1, 4, 8, 16, 32, 64]
     for accblock_size in accblock_size_list:
         benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected, [(n, m), (m, l), accblock_size], ['float', 'float', 'int'], [0, 0, 0], [0, 0, 0], [None, None, accblock_size], title=f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})")
-
-    benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, [(n, m), (m, l), (n, l), (n, l), (n, l), 1],
-                                                                        ['float', 'float', 'float', 'int', 'int', 'int'],
-                                                                        [0, 0, 0, 0, 0, 0],
-                                                                        [0, 0, 0, m, m, 0],
-                                                                        title="Test kernel v5: fullyconnected_backward")
+    accblock_size_list = [1, 4, 8, 16, 32, 64]
+    for accblock_size in accblock_size_list:
+        benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, [(n, m), (m, l), (n, l), (n, l), (n, l), 1],
+                                                                            ['float', 'float', 'float', 'int', 'int', 'int'],
+                                                                            [0, 0, 0, 0, 0, 0],
+                                                                            [0, 0, 0, m//accblock_size, m//accblock_size, 0],
+                                                                            [None, None, None, None, None, 1],
+                                                                            title=f"Test kernel v5: fullyconnected_backward (accblock_size = {accblock_size})")
 
     

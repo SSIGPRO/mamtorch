@@ -21,6 +21,7 @@ class FullyConnected(Module):
         out_features:int,
         bias: bool = True,
         splits: int = 1,
+        accblock_size: int = 1,
         relu_in: bool = False,
         vcon_steps: int = 0,
         vcon_type: str = 'linear',
@@ -28,7 +29,6 @@ class FullyConnected(Module):
         beta_zero_gain: float = 1.0, # maximum output gain, that is beta_zero_gain*(1-beta)
         wdrop_rate: float = 0,
         drop_rate: float = 0,
-        compute_exact = False, # if False, use the approximate computing fast kernel (K.v4), if True, use the exact slower kernel (K.v1)
         train_mam_only = False, # if True, during vanishing contribution, gradient is evaluated ONLY on the selected max and min interconnections
         store_args = False,
         device=None,
@@ -40,6 +40,7 @@ class FullyConnected(Module):
         self.in_features = in_features
         self.out_features = out_features
         self.splits = splits
+        self.accblock_size = accblock_size
         self.relu_in = relu_in
         self.vcon_type = vcon_type
         self.vcon_steps = vcon_steps
@@ -47,7 +48,6 @@ class FullyConnected(Module):
         self.beta_zero_gain = beta_zero_gain
         self.wdrop_rate = wdrop_rate
         self.drop_rate = drop_rate
-        self.compute_exact = compute_exact
         self.train_mam_only = train_mam_only
         self.store_args = store_args
 
@@ -156,12 +156,12 @@ class FullyConnected(Module):
         def compute_noargs(input, weight):
             if self.beta < 1:
                 if self.training:
-                    if self.compute_exact:
-                        out = K.v1.fullyconnected(input, weight)[0]
-                    else:
-                        out = K.v4.fullyconnected(input, weight)[0]
+                    out = K.v5.fullyconnected(input, weight, self.accblock_size)[0]
                 else:
-                    out = K.v4.fullyconnected_fast(input, weight) # fast computation is always exact
+                    if self.accblock_size > 1:
+                        out = K.v5.fullyconnected(input, weight, self.accblock_size)[0]
+                    else:
+                        out = K.v4.fullyconnected_fast(input, weight) # fast computation is always exact
             else:
                 out = torch.zeros((input.shape[0], weight.shape[1]), device=weight.device)
             return out
@@ -181,10 +181,7 @@ class FullyConnected(Module):
             C_flat += compute_noargs(input_flat_split, w_split)
         else:
             if self.store_args:
-                if self.compute_exact:
-                    C_flat, argmax, argmin = K.v1.fullyconnected(input_flat, w)
-                else:
-                    C_flat, argmax, argmin = K.v4.fullyconnected(input_flat, w)
+                C_flat, argmax, argmin = K.v5.fullyconnected(input_flat, w, self.accblock_size)
                 # store argmax and argmin for external usage
                 self.argmax = argmax
                 self.argmin = argmin
@@ -213,9 +210,6 @@ class FullyConnected(Module):
         if self.drop_rate > 0:
             C = torch.nn.functional.dropout(C, self.drop_rate, self.training)
 
-        # if self.norm_mean is not None:
-        #     C = C/torch.norm(C)
-
         return C
 
     def __repr__(self) -> str:
@@ -224,6 +218,8 @@ class FullyConnected(Module):
             description_string += f", vcon_steps={self.vcon_steps}, vcon_type={self.vcon_type}"
         if self.splits > 1:
             description_string += f", splits={self.splits}"
+        if self.accblock_size > 1:
+            description_string += f", accblock_size={self.accblock_size}"
         if self.beta_zero_gain != 1:
             description_string += f", beta_zero_gain={self.beta_zero_gain}"
         if self.relu_in:

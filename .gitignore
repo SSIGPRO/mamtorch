@@ -3,3 +3,4 @@
 build/
 mamtorch.egg-info/
 sparse_measures.csv
+*.ptx

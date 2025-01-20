@@ -17,7 +17,7 @@ from torch.utils.cpp_extension import (
 )
 
 library_name = "mamtorch"
-version = "1.5.4"
+version = "1.6.1"
 
 
 def get_extensions():
@@ -71,12 +71,12 @@ def get_extensions():
     #     sources_v3 += cuda_sources_v3
 
     # kernel v4
-    extensions_dir_v4 = os.path.join(this_dir, library_name, "kernel/v4/csrc")
-    sources_v4 = list(glob.glob(os.path.join(extensions_dir_v4, "*.cpp")))
-    extensions_cuda_dir_v4 = os.path.join(extensions_dir_v4, "cuda")
-    cuda_sources_v4 = list(glob.glob(os.path.join(extensions_cuda_dir_v4, "*.cu")))
-    if use_cuda:
-        sources_v4 += cuda_sources_v4
+    # extensions_dir_v4 = os.path.join(this_dir, library_name, "kernel/v4/csrc")
+    # sources_v4 = list(glob.glob(os.path.join(extensions_dir_v4, "*.cpp")))
+    # extensions_cuda_dir_v4 = os.path.join(extensions_dir_v4, "cuda")
+    # cuda_sources_v4 = list(glob.glob(os.path.join(extensions_cuda_dir_v4, "*.cu")))
+    # if use_cuda:
+    #     sources_v4 += cuda_sources_v4
 
     # kernel v5
     extensions_dir_v5 = os.path.join(this_dir, library_name, "kernel/v5/csrc")
@@ -113,12 +113,12 @@ def get_extensions():
         #     extra_compile_args=extra_compile_args,
         #     extra_link_args=extra_link_args,
         # ),
-        extension(
-            f"{library_name}.kernel.v4._C",
-            sources_v4,
-            extra_compile_args=extra_compile_args,
-            extra_link_args=extra_link_args,
-        ),
+        # extension(
+        #     f"{library_name}.kernel.v4._C",
+        #     sources_v4,
+        #     extra_compile_args=extra_compile_args,
+        #     extra_link_args=extra_link_args,
+        # ),
         extension(
             f"{library_name}.kernel.v5._C",
             sources_v5,
