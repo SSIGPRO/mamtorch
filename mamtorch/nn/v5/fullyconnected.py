@@ -161,7 +161,7 @@ class FullyConnected(Module):
                     if self.accblock_size > 1:
                         out = K.v5.fullyconnected(input, weight, self.accblock_size)[0]
                     else:
-                        out = K.v4.fullyconnected_fast(input, weight) # fast computation is always exact
+                        out = K.v5.fullyconnected_fast(input, weight) # fast computation is always exact
             else:
                 out = torch.zeros((input.shape[0], weight.shape[1]), device=weight.device)
             return out
