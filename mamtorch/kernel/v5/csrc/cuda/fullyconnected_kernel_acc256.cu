@@ -5,6 +5,15 @@
 #include <vector>
 #include <limits>
 
+#define ACC 256 // accumulation block sizes
+
+// Macro to concatenate tokens
+#define CONCAT_2_EXPAND(A, B) A ## B
+#define CONCAT_2(A, B) CONCAT_2_EXPAND(A, B)
+
+// Macro to generate function names
+#define FUNC_(NUM) CONCAT_2(fullyconnected_cuda_kernel_acc, NUM)
+
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
 #define BSK 64 // block size along K
@@ -26,7 +35,7 @@
 
 namespace mamtorch_kernel_v5 {
 
-__global__ void fullyconnected_cuda_kernel(    
+__global__ void FUNC_(ACC)(    
     const float * __restrict__ A,
     const float * __restrict__ BT,
     float * __restrict__ C,
@@ -65,6 +74,7 @@ __global__ void fullyconnected_cuda_kernel(
     // declare and initialize accumulators with the first value
     float Areg;
     float Breg[WPTN];
+    union floatint_t acc[WPTM][WPTN];
     union floatint_t accmax[WPTM][WPTN];
     union floatint_t accmin[WPTM][WPTN];
     
@@ -72,6 +82,7 @@ __global__ void fullyconnected_cuda_kernel(
     {
         for(int wj = 0; wj < WPTN; ++wj)
         {
+            acc[wi][wj].s = 0.0f;
             accmax[wi][wj].i = 0xff7fffff;//std::numeric_limits<float>::min();
             accmin[wi][wj].i = 0x7f7fffff;//std::numeric_limits<float>::max();
         }
@@ -105,10 +116,9 @@ __global__ void fullyconnected_cuda_kernel(
         __syncthreads();
             
         // evaluate partial result
+
         for(int k = 0; k < BSK; ++k)
         {
-            int arg = BSK*bk+k; // new arg
-
             // cache the values of Bblock in registers
             for(int wj = 0; wj < WPTN; ++wj)
             {
@@ -117,33 +127,44 @@ __global__ void fullyconnected_cuda_kernel(
                 Breg[wj] = Bblock[j_block][k];
             }
             
-            // perform operation
+            // perform MAC operation
             for(int wi = 0; wi < WPTM; ++wi)
             {               
                 // register group offset + position in the register group
                 int i_block =  wi*RBSM + i_reg;
                 Areg = Ablock[k][i_block];
                 
-                for(int wj = 0; wj < WPTN; ++wj)
+                for(int wj = 0; wj < WPTN; ++wj) 
                 {
-                    // get weighted inputs, check if max or min and substitute in the accumulators                
-                    union floatint_t tmparg;
-                    
-                    // get current values
-                    tmparg.s = Areg * Breg[wj]; // new value
-                    tmparg.ih[0] = arg; // new arg
+                    acc[wi][wj].s += Areg * Breg[wj]; // actual MAC
+                }
+            }
+        }
+        __syncthreads();
 
-                    accmax[wi][wj].s = max(tmparg.s, accmax[wi][wj].s);
-                    accmin[wi][wj].s = min(tmparg.s, accmin[wi][wj].s);
+        // get max/min of the accumulated values
+        int blocks_per_acc = ACC/BSK;
+        if((bk+1) % blocks_per_acc == 0)
+        {
+            int arg = bk/blocks_per_acc;
+            for(int wi = 0; wi < WPTM; ++wi)
+            {                               
+                for(int wj = 0; wj < WPTN; ++wj)
+                {                    
+                    // get current values
+                    acc[wi][wj].ih[0] = arg; // new arg
+
+                    accmax[wi][wj].s = max(acc[wi][wj].s, accmax[wi][wj].s);
+                    accmin[wi][wj].s = min(acc[wi][wj].s, accmin[wi][wj].s);
                     // NOTE: when input value is close to the acc value, big error in 
                     // the evaluation of argmax or argmin might occur.
                     // When using padding with "replicate" option, this results in
                     // memory illegal accesses during backprop.
                     // SOLUTION: saturate argmax argmin values outside of the kernel
-                }
-            }  
+                    acc[wi][wj].s = 0.0f;
+                }   
+            }         
         }
-        __syncthreads();
     }
     
     // *** STORE THE OUTPUTS ***

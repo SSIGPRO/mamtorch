@@ -5,6 +5,15 @@
 #include <vector>
 #include <limits>
 
+#define ACC 16 // accumulation block sizes
+
+// Macro to concatenate tokens
+#define CONCAT_2_EXPAND(A, B) A ## B
+#define CONCAT_2(A, B) CONCAT_2_EXPAND(A, B)
+
+// Macro to generate function names
+#define FUNC_(NUM) CONCAT_2(fullyconnected_cuda_kernel_acc, NUM)
+
 #define BSM 64 // block size along M
 #define BSN BSM // block size along N
 #define BSK 64 // block size along K
@@ -24,9 +33,9 @@
 * - the use of transposition and padding introduce negligible delay
 */
 
-namespace mamtorch_kernel_v5 {
+namespace mamtorch_kernel_v6 {
 
-__global__ void fullyconnected_cuda_kernel(    
+__global__ void FUNC_(ACC)(    
     const float * __restrict__ A,
     const float * __restrict__ BT,
     float * __restrict__ C,
@@ -36,13 +45,6 @@ __global__ void fullyconnected_cuda_kernel(
     int K,
     int N)
 {   
-    union floatint_t
-    {
-        float s;
-        int32_t i;
-        int16_t ih[2];
-    };
-
     // get thread and block ids
     const int bi = blockIdx.x;
     const int bj = blockIdx.y;
@@ -65,15 +67,24 @@ __global__ void fullyconnected_cuda_kernel(
     // declare and initialize accumulators with the first value
     float Areg;
     float Breg[WPTN];
-    union floatint_t accmax[WPTM][WPTN];
-    union floatint_t accmin[WPTM][WPTN];
+    float acc[WPTM][WPTN];
+    float accmax[WPTM][WPTN];
+    float accmin[WPTM][WPTN];
+    float argmax[WPTM][WPTN];
+    float argmin[WPTM][WPTN];
+
+    const int maxfloat = 0x7f7fffff;
+    const int minfloat = 0xff7fffff;
+    const float *maxfloat_f = (float*)(&maxfloat);
+    const float *minfloat_f = (float*)(&minfloat);
     
     for(int wi = 0; wi < WPTM; ++wi)
     {
         for(int wj = 0; wj < WPTN; ++wj)
         {
-            accmax[wi][wj].i = 0xff7fffff;//std::numeric_limits<float>::min();
-            accmin[wi][wj].i = 0x7f7fffff;//std::numeric_limits<float>::max();
+            acc[wi][wj] = 0.0f;
+            accmax[wi][wj] = *minfloat_f;//std::numeric_limits<float>::min();
+            accmin[wi][wj] = *maxfloat_f;//std::numeric_limits<float>::max();
         }
     }
     
@@ -105,43 +116,55 @@ __global__ void fullyconnected_cuda_kernel(
         __syncthreads();
             
         // evaluate partial result
-        for(int k = 0; k < BSK; ++k)
+        const int num_accblocks = BSK/ACC;
+        for(int kab = 0; kab < num_accblocks; ++kab)
         {
-            int arg = BSK*bk+k; // new arg
+            int arg = num_accblocks*bk+kab; // new arg
 
-            // cache the values of Bblock in registers
-            for(int wj = 0; wj < WPTN; ++wj)
+            for(int k = 0; k < ACC; ++k)
             {
-                // register group offset + position in the register group
-                int j_block = wj*RBSN + j_reg;
-                Breg[wj] = Bblock[j_block][k];
-            }
-            
-            // perform operation
-            for(int wi = 0; wi < WPTM; ++wi)
-            {               
-                // register group offset + position in the register group
-                int i_block =  wi*RBSM + i_reg;
-                Areg = Ablock[k][i_block];
-                
+                int ktot = kab*ACC+k;
+                // cache the values of Bblock in registers
                 for(int wj = 0; wj < WPTN; ++wj)
                 {
-                    // get weighted inputs, check if max or min and substitute in the accumulators                
-                    union floatint_t tmparg;
-                    
-                    // get current values
-                    tmparg.s = Areg * Breg[wj]; // new value
-                    tmparg.ih[0] = arg; // new arg
-
-                    accmax[wi][wj].s = max(tmparg.s, accmax[wi][wj].s);
-                    accmin[wi][wj].s = min(tmparg.s, accmin[wi][wj].s);
-                    // NOTE: when input value is close to the acc value, big error in 
-                    // the evaluation of argmax or argmin might occur.
-                    // When using padding with "replicate" option, this results in
-                    // memory illegal accesses during backprop.
-                    // SOLUTION: saturate argmax argmin values outside of the kernel
+                    // register group offset + position in the register group
+                    int j_block = wj*RBSN + j_reg;
+                    Breg[wj] = Bblock[j_block][ktot];
                 }
-            }  
+                
+                // perform MAC operation
+                for(int wi = 0; wi < WPTM; ++wi)
+                {               
+                    // register group offset + position in the register group
+                    int i_block =  wi*RBSM + i_reg;
+                    Areg = Ablock[ktot][i_block];
+                    
+                    for(int wj = 0; wj < WPTN; ++wj) 
+                    {
+                        acc[wi][wj] += Areg * Breg[wj]; // actual MAC
+                    }
+                }
+            }
+
+            // get max/min of the accumulated values
+            for(int wi = 0; wi < WPTM; ++wi)
+            {                               
+                for(int wj = 0; wj < WPTN; ++wj)
+                {                    
+                    if(acc[wi][wj] > accmax[wi][wj])
+                    {
+                        accmax[wi][wj] = acc[wi][wj];
+                        argmax[wi][wj] = arg;
+                    }
+                    if(acc[wi][wj] < accmin[wi][wj])
+                    {
+                        accmin[wi][wj] = acc[wi][wj];
+                        argmin[wi][wj] = arg;
+                    }
+
+                    acc[wi][wj] = 0.0f;
+                }   
+            }         
         }
         __syncthreads();
     }
@@ -157,8 +180,8 @@ __global__ void fullyconnected_cuda_kernel(
             // tile off. + register group off. + position in the register group
             const int j_out = j_tile_off + wj*RBSN + j_reg;
             
-            Cargmax[j_out*M + i_out] = accmax[wi][wj].ih[0];
-            Cargmin[j_out*M + i_out] = accmin[wi][wj].ih[0];
+            Cargmax[j_out*M + i_out] = argmax[wi][wj];
+            Cargmin[j_out*M + i_out] = argmin[wi][wj];
         }
     }
 
@@ -166,7 +189,7 @@ __global__ void fullyconnected_cuda_kernel(
     {
         for(int wj = 0; wj < WPTN; ++wj)
         {
-            accmax[wi][wj].s += accmin[wi][wj].s;
+            accmax[wi][wj] += accmin[wi][wj];
         }
     }
 
@@ -179,7 +202,7 @@ __global__ void fullyconnected_cuda_kernel(
             // tile off. + register group off. + position in the register group
             const int j_out = j_tile_off + wj*RBSN + j_reg;
             
-            C[j_out*M + i_out] = accmax[wi][wj].s;
+            C[j_out*M + i_out] = accmax[wi][wj];
         }
     }
 }

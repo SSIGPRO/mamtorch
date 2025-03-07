@@ -24,7 +24,7 @@
 * - the use of transposition and padding introduce negligible delay
 */
 
-namespace mamtorch_kernel_v5 {
+namespace mamtorch_kernel_v6 {
 
 __global__ void fullyconnected_cuda_kernel(    
     const float * __restrict__ A,
@@ -36,13 +36,6 @@ __global__ void fullyconnected_cuda_kernel(
     int K,
     int N)
 {   
-    union floatint_t
-    {
-        float s;
-        int32_t i;
-        int16_t ih[2];
-    };
-
     // get thread and block ids
     const int bi = blockIdx.x;
     const int bj = blockIdx.y;
@@ -65,15 +58,22 @@ __global__ void fullyconnected_cuda_kernel(
     // declare and initialize accumulators with the first value
     float Areg;
     float Breg[WPTN];
-    union floatint_t accmax[WPTM][WPTN];
-    union floatint_t accmin[WPTM][WPTN];
+    float accmax[WPTM][WPTN];
+    float accmin[WPTM][WPTN];
+    float argmax[WPTM][WPTN];
+    float argmin[WPTM][WPTN];
+
+    const int maxfloat = 0x7f7fffff;
+    const int minfloat = 0xff7fffff;
+    const float *maxfloat_f = (float*)(&maxfloat);
+    const float *minfloat_f = (float*)(&minfloat);
     
     for(int wi = 0; wi < WPTM; ++wi)
     {
         for(int wj = 0; wj < WPTN; ++wj)
         {
-            accmax[wi][wj].i = 0xff7fffff;//std::numeric_limits<float>::min();
-            accmin[wi][wj].i = 0x7f7fffff;//std::numeric_limits<float>::max();
+            accmax[wi][wj] = *minfloat_f;//std::numeric_limits<float>::min();
+            accmin[wi][wj] = *maxfloat_f;//std::numeric_limits<float>::max();
         }
     }
     
@@ -125,21 +125,20 @@ __global__ void fullyconnected_cuda_kernel(
                 Areg = Ablock[k][i_block];
                 
                 for(int wj = 0; wj < WPTN; ++wj)
-                {
-                    // get weighted inputs, check if max or min and substitute in the accumulators                
-                    union floatint_t tmparg;
-                    
+                {                   
                     // get current values
-                    tmparg.s = Areg * Breg[wj]; // new value
-                    tmparg.ih[0] = arg; // new arg
+                    float tmp = Areg * Breg[wj]; // new value
 
-                    accmax[wi][wj].s = max(tmparg.s, accmax[wi][wj].s);
-                    accmin[wi][wj].s = min(tmparg.s, accmin[wi][wj].s);
-                    // NOTE: when input value is close to the acc value, big error in 
-                    // the evaluation of argmax or argmin might occur.
-                    // When using padding with "replicate" option, this results in
-                    // memory illegal accesses during backprop.
-                    // SOLUTION: saturate argmax argmin values outside of the kernel
+                    if(tmp > accmax[wi][wj])
+                    {
+                        accmax[wi][wj] = tmp;
+                        argmax[wi][wj] = arg;
+                    }
+                    if(tmp < accmin[wi][wj])
+                    {
+                        accmin[wi][wj] = tmp;
+                        argmin[wi][wj] = arg;
+                    }
                 }
             }  
         }
@@ -157,8 +156,8 @@ __global__ void fullyconnected_cuda_kernel(
             // tile off. + register group off. + position in the register group
             const int j_out = j_tile_off + wj*RBSN + j_reg;
             
-            Cargmax[j_out*M + i_out] = accmax[wi][wj].ih[0];
-            Cargmin[j_out*M + i_out] = accmin[wi][wj].ih[0];
+            Cargmax[j_out*M + i_out] = argmax[wi][wj];
+            Cargmin[j_out*M + i_out] = argmin[wi][wj];
         }
     }
 
@@ -166,7 +165,7 @@ __global__ void fullyconnected_cuda_kernel(
     {
         for(int wj = 0; wj < WPTN; ++wj)
         {
-            accmax[wi][wj].s += accmin[wi][wj].s;
+            accmax[wi][wj] += accmin[wi][wj];
         }
     }
 
@@ -179,7 +178,7 @@ __global__ void fullyconnected_cuda_kernel(
             // tile off. + register group off. + position in the register group
             const int j_out = j_tile_off + wj*RBSN + j_reg;
             
-            C[j_out*M + i_out] = accmax[wi][wj].s;
+            C[j_out*M + i_out] = accmax[wi][wj];
         }
     }
 }

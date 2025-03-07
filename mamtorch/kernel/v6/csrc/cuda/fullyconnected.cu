@@ -30,7 +30,7 @@
 * - the use of transposition and padding introduce negligible delay
 */
 
-namespace mamtorch_kernel_v5 {
+namespace mamtorch_kernel_v6 {
 
 __global__ void fullyconnected_cuda_kernel(
     const float * __restrict__ A,

@@ -18,7 +18,7 @@ class FullyConnected(Module):
     def __init__(
         self,
         in_features: int,
-        out_features:int,
+        out_features: int,
         bias: bool = True,
         splits: int = 1,
         accblock_size: int = 1,
@@ -31,8 +31,9 @@ class FullyConnected(Module):
         drop_rate: float = 0,
         train_mam_only = False, # if True, during vanishing contribution, gradient is evaluated ONLY on the selected max and min interconnections
         store_args = False,
-        device=None,
-        dtype=None,
+        fast_computation: bool = False, # if True, use fast approximate kernel
+        device = None,
+        dtype = None,
     ) -> None:
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -50,6 +51,7 @@ class FullyConnected(Module):
         self.drop_rate = drop_rate
         self.train_mam_only = train_mam_only
         self.store_args = store_args
+        self.fast_computation = fast_computation
 
         self.weight = Parameter(torch.empty(self.out_features, self.in_features, **factory_kwargs))
         if self.splits > 1:
@@ -136,6 +138,9 @@ class FullyConnected(Module):
         self.norm_var = var
         
     def forward(self, input: Tensor) -> Tensor:
+        # Select whether to use fast approximated or exact kernel
+        mamkernel = K.v5.fullyconnected if self.fast_computation else K.v6.fullyconnected
+
         # apply relu to input if requested
         if self.relu_in:
             input = torch.nn.functional.relu(input)
@@ -156,12 +161,12 @@ class FullyConnected(Module):
         def compute_noargs(input, weight):
             if self.beta < 1:
                 if self.training:
-                    out = K.v5.fullyconnected(input, weight, self.accblock_size)[0]
+                    out = mamkernel(input, weight, self.accblock_size)[0]
                 else:
                     if self.accblock_size > 1:
-                        out = K.v5.fullyconnected(input, weight, self.accblock_size)[0]
+                        out = mamkernel(input, weight, self.accblock_size)[0]
                     else:
-                        out = K.v5.fullyconnected_fast(input, weight) # fast computation is always exact
+                        out = K.v6.fullyconnected_fast(input, weight) # computation without args is always exact
             else:
                 out = torch.zeros((input.shape[0], weight.shape[1]), device=weight.device)
             return out
@@ -181,7 +186,7 @@ class FullyConnected(Module):
             C_flat += compute_noargs(input_flat_split, w_split)
         else:
             if self.store_args:
-                C_flat, argmax, argmin = K.v5.fullyconnected(input_flat, w, self.accblock_size)
+                C_flat, argmax, argmin = mamkernel(input_flat, w, self.accblock_size)
                 # store argmax and argmin for external usage
                 self.argmax = argmax
                 self.argmin = argmin
