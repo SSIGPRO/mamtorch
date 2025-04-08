@@ -6,11 +6,11 @@ __all__ = ["fullyconnected"]
 library_name = "mamtorch_kernel_v6"
 K = torch.ops.mamtorch_kernel_v6
 
-def fullyconnected(a: Tensor, b: Tensor, accblock_size: int) -> list[Tensor]:
-    return K.fullyconnected.default(a, b, accblock_size)
+def fullyconnected(a: Tensor, b: Tensor, accblock_size: int, ste_weight_gradient: int) -> list[Tensor]:
+    return K.fullyconnected.default(a, b, accblock_size, ste_weight_gradient)
 
 @torch.library.register_fake(f"{library_name}::fullyconnected")
-def _(a, b, accblock_size):
+def _(a, b, accblock_size, ste_weight_gradient):
     torch._check(a.size(1) == b.size(0))
     torch._check(a.dtype == torch.float)
     torch._check(b.dtype == torch.float)
@@ -24,26 +24,28 @@ def _(a, b, accblock_size):
 def _backward(ctx, grad):
     a, b, argmax, argmin = ctx.saved_tensors
     accblock_size = ctx.accblock_size
+    ste_weight_gradient = ctx.ste_weight_gradient
     a_grad, b_grad = None, None
     if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
-        a_grad, b_grad = K.fullyconnected_backward.default(a, b, grad[0], argmax, argmin, accblock_size)
-    return a_grad, b_grad, None
+        a_grad, b_grad = K.fullyconnected_backward.default(a, b, grad[0], argmax, argmin, accblock_size, ste_weight_gradient)
+    return a_grad, b_grad, None, None
 
 def _setup_context(ctx, inputs, output):
-    a, b, accblock_size = inputs
+    a, b, accblock_size, ste_weight_gradient = inputs
     _, argmax, argmin = output
     saved_a, saved_b = None, None
     if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
         saved_a = a
         saved_b = b
     ctx.accblock_size = accblock_size
+    ctx.ste_weight_gradient = ste_weight_gradient
     ctx.save_for_backward(saved_a, saved_b, argmin, argmax)
 
 torch.library.register_autograd(
     f"{library_name}::fullyconnected", _backward, setup_context=_setup_context)
 
 @torch.library.register_fake(f"{library_name}::fullyconnected_backward")
-def _(a, b, grad, argmax, argmin, accblock_size):
+def _(a, b, grad, argmax, argmin, accblock_size, ste_weight_gradient):
     torch._check(a.size(1) == b.size(0))
     torch._check(grad.size(0) == a.size(0))
     torch._check(grad.size(1) == b.size(1))

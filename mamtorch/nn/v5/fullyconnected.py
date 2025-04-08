@@ -32,6 +32,7 @@ class FullyConnected(Module):
         train_mam_only = False, # if True, during vanishing contribution, gradient is evaluated ONLY on the selected max and min interconnections
         store_args = False,
         fast_computation: bool = False, # if True, use fast approximate kernel
+        ste_weight_gradient: bool = False, # if True, use STE for the evaulation of the weight gradient
         device = None,
         dtype = None,
     ) -> None:
@@ -52,6 +53,7 @@ class FullyConnected(Module):
         self.train_mam_only = train_mam_only
         self.store_args = store_args
         self.fast_computation = fast_computation
+        self.ste_weight_gradient = ste_weight_gradient
 
         self.weight = Parameter(torch.empty(self.out_features, self.in_features, **factory_kwargs))
         if self.splits > 1:
@@ -161,10 +163,10 @@ class FullyConnected(Module):
         def compute_noargs(input, weight):
             if self.beta < 1:
                 if self.training:
-                    out = mamkernel(input, weight, self.accblock_size)[0]
+                    out = mamkernel(input, weight, self.accblock_size, self.ste_weight_gradient)[0]
                 else:
                     if self.accblock_size > 1:
-                        out = mamkernel(input, weight, self.accblock_size)[0]
+                        out = mamkernel(input, weight, self.accblock_size, self.ste_weight_gradient)[0]
                     else:
                         out = K.v6.fullyconnected_fast(input, weight) # computation without args is always exact
             else:
@@ -186,7 +188,7 @@ class FullyConnected(Module):
             C_flat += compute_noargs(input_flat_split, w_split)
         else:
             if self.store_args:
-                C_flat, argmax, argmin = mamkernel(input_flat, w, self.accblock_size)
+                C_flat, argmax, argmin = mamkernel(input_flat, w, self.accblock_size, self.ste_weight_gradient)
                 # store argmax and argmin for external usage
                 self.argmax = argmax
                 self.argmin = argmin

@@ -1,6 +1,6 @@
 import torch
 
-def fullyconnected_reference(a, b, accblock_size=1):
+def fullyconnected_reference(a, b, accblock_size=1, ste_weight_gradient=False):
     rows_to_pad = (accblock_size - (b.size(0) % accblock_size)) % accblock_size
     a_padded = torch.nn.functional.pad(a, (0, rows_to_pad, 0, 0))
     b_padded = torch.nn.functional.pad(b, (0, 0, 0, rows_to_pad))
@@ -17,7 +17,7 @@ def fullyconnected_reference(a, b, accblock_size=1):
 
     return valmax + valmin, argmax, argmin
 
-def fullyconnected_block_reference(a, b, bias=0.0, beta=0, block_size=4):
+def fullyconnected_block_reference(a, b, bias=0.0, beta=0, block_size=4, ste_weight_gradient=False):
     #blocks_num = (b.size[0]+block_size-1)//block_size # rounded-up integer division
     reminder = a.shape[1]%block_size
     padding = block_size - reminder if reminder > 0 else 0
@@ -33,7 +33,7 @@ def fullyconnected_block_reference(a, b, bias=0.0, beta=0, block_size=4):
 
     return y, argmax, argmin
 
-def fullyconnected_backward_reference(a, b, cgrad, argmax, argmin, accblock_size=1, beta=0.0):
+def fullyconnected_backward_reference(a, b, cgrad, argmax, argmin, accblock_size=1, ste_weight_gradient=False, beta=0.0):
     # MAC component
     agrad1 = cgrad@b.T
     bgrad1 = a.T@cgrad
@@ -48,5 +48,8 @@ def fullyconnected_backward_reference(a, b, cgrad, argmax, argmin, accblock_size
             mask[argmin[i]*accblock_size+j, torch.arange(len(argmin[i]))] += 1
         mask = mask[:b.shape[0]]
         agrad2[i] = cgrad[i]@(b*mask).T
-        bgrad2 += (torch.unsqueeze(a[i],1)@torch.unsqueeze(cgrad[i],0))*mask
+        if not ste_weight_gradient:
+            bgrad2 += (torch.unsqueeze(a[i],1)@torch.unsqueeze(cgrad[i],0))*mask
+    if ste_weight_gradient:
+        bgrad2 = bgrad1
     return agrad1*beta + agrad2*(1-beta), bgrad1*beta + bgrad2*(1-beta)

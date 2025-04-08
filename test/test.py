@@ -124,20 +124,21 @@ if print_outputs:
 # test_function(torch.ops.mamtorch_kernel_v4.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin), "Test kernel v4: fullyconnected_backward", print_outputs)
 
 # kernel v5
-for accblock_size in accblock_size_list:
-    test_function(torch.ops.mamtorch_kernel_v5.fullyconnected, fullyconnected_reference, (a, b, accblock_size), f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})", print_outputs)
-for accblock_size, argmax, argmin in zip(accblock_size_list, argmax_list, argmin_list):
-    if accblock_size > 16: # tests are very slow above this block size, but code is the same
-        break
-    test_function(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin, accblock_size), f"Test kernel v5: fullyconnected_backward (accblock_size = {accblock_size})", print_outputs)
+# for accblock_size in accblock_size_list:
+#     test_function(torch.ops.mamtorch_kernel_v5.fullyconnected, fullyconnected_reference, (a, b, accblock_size), f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})", print_outputs)
+# for accblock_size, argmax, argmin in zip(accblock_size_list, argmax_list, argmin_list):
+#     if accblock_size > 16: # tests are very slow above this block size, but code is the same
+#         break
+#     test_function(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin, accblock_size), f"Test kernel v5: fullyconnected_backward (accblock_size = {accblock_size})", print_outputs)
 
 # kernel v6
+ste_weight_gradient = True
 for accblock_size in accblock_size_list:
-    test_function(torch.ops.mamtorch_kernel_v6.fullyconnected, fullyconnected_reference, (a, b, accblock_size), f"Test kernel v6: fullyconnected (accblock_size = {accblock_size})", print_outputs)
+    test_function(torch.ops.mamtorch_kernel_v6.fullyconnected, fullyconnected_reference, (a, b, accblock_size, ste_weight_gradient), f"Test kernel v6: fullyconnected (accblock_size = {accblock_size})", print_outputs)
 for accblock_size, argmax, argmin in zip(accblock_size_list, argmax_list, argmin_list):
-    if accblock_size > 16: # tests are very slow above this block size, but code is the same
+    if accblock_size > 4: # tests are very slow above this block size, but code is the same
         break
-    test_function(torch.ops.mamtorch_kernel_v6.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin, accblock_size), f"Test kernel v6: fullyconnected_backward (accblock_size = {accblock_size})", print_outputs)
+    test_function(torch.ops.mamtorch_kernel_v6.fullyconnected_backward, fullyconnected_backward_reference, (a, b, c, argmax, argmin, accblock_size, ste_weight_gradient), f"Test kernel v6: fullyconnected_backward (accblock_size = {accblock_size})", print_outputs)
 
 if benchmarks:
     # print("__________________________")
@@ -160,25 +161,25 @@ if benchmarks:
     #                                                                        title="Test kernel v4: fullyconnected_backward")
 
     # kernel v5
-    for accblock_size in accblock_size_list:
-        benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected, [(n, m), (m, l), accblock_size], ['float', 'float', 'int'], [0, 0, 0], [0, 0, 0], [None, None, accblock_size], title=f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})")
-    for accblock_size in accblock_size_list:
-        benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, [(n, m), (m, l), (n, l), (n, l), (n, l), 1],
-                                                                            ['float', 'float', 'float', 'int', 'int', 'int'],
-                                                                            [0, 0, 0, 0, 0, 0],
-                                                                            [0, 0, 0, m//accblock_size, m//accblock_size, 0],
-                                                                            [None, None, None, None, None, 1],
-                                                                            title=f"Test kernel v5: fullyconnected_backward (accblock_size = {accblock_size})")
+    # for accblock_size in accblock_size_list:
+    #     benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected, [(n, m), (m, l), accblock_size], ['float', 'float', 'int'], [0, 0, 0], [0, 0, 0], [None, None, accblock_size], title=f"Test kernel v5: fullyconnected (accblock_size = {accblock_size})")
+    # for accblock_size in accblock_size_list:
+    #     benchmark_kernel(torch.ops.mamtorch_kernel_v5.fullyconnected_backward, [(n, m), (m, l), (n, l), (n, l), (n, l), 1],
+    #                                                                         ['float', 'float', 'float', 'int', 'int', 'int'],
+    #                                                                         [0, 0, 0, 0, 0, 0],
+    #                                                                         [0, 0, 0, m//accblock_size, m//accblock_size, 0],
+    #                                                                         [None, None, None, None, None, 1],
+    #                                                                         title=f"Test kernel v5: fullyconnected_backward (accblock_size = {accblock_size})")
         
     # kernel v6
     for accblock_size in accblock_size_list:
-        benchmark_kernel(torch.ops.mamtorch_kernel_v6.fullyconnected, [(n, m), (m, l), accblock_size], ['float', 'float', 'int'], [0, 0, 0], [0, 0, 0], [None, None, accblock_size], title=f"Test kernel v6: fullyconnected (accblock_size = {accblock_size})")
+        benchmark_kernel(torch.ops.mamtorch_kernel_v6.fullyconnected, [(n, m), (m, l), 1, 1], ['float', 'float', 'int', 'int'], [0, 0, 0, 0], [0, 0, 0, 0], [None, None, accblock_size, 1], title=f"Test kernel v6: fullyconnected (accblock_size = {accblock_size})")
     for accblock_size in accblock_size_list:
-        benchmark_kernel(torch.ops.mamtorch_kernel_v6.fullyconnected_backward, [(n, m), (m, l), (n, l), (n, l), (n, l), 1],
-                                                                            ['float', 'float', 'float', 'int', 'int', 'int'],
-                                                                            [0, 0, 0, 0, 0, 0],
-                                                                            [0, 0, 0, m//accblock_size, m//accblock_size, 0],
-                                                                            [None, None, None, None, None, 1],
+        benchmark_kernel(torch.ops.mamtorch_kernel_v6.fullyconnected_backward, [(n, m), (m, l), (n, l), (n, l), (n, l), 1, 1],
+                                                                            ['float', 'float', 'float', 'int', 'int', 'int', 'int'],
+                                                                            [0, 0, 0, 0, 0, 0, 0],
+                                                                            [0, 0, 0, m//accblock_size, m//accblock_size, 0, 0],
+                                                                            [None, None, None, None, None, 1, 1],
                                                                             title=f"Test kernel v6: fullyconnected_backward (accblock_size = {accblock_size})")
 
     

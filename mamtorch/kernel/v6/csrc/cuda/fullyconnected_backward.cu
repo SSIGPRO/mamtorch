@@ -118,7 +118,8 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
     at::Tensor Cgrad,
     at::Tensor Cargmax,
     at::Tensor Cargmin,
-    int64_t accblock_size)
+    int64_t accblock_size,
+    int64_t ste_weight_gradient)
 {   
     cudaSetDevice(A.get_device()); // set GPU number
     
@@ -135,102 +136,7 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
     // ##########################################
     // GRADIENT OF A
     // we perform Cgrad@B^T
-    /*{
-        // cuda-ready matrices
-        auto Acuda = CgradTcm.transpose(0,1).contiguous();  // CTcm to Ccm, stored as matrix A
-        auto Aargmax_cuda = CargmaxTcm.transpose(0,1).contiguous();  // CTcm to Ccm, stored as matrix A
-        auto Aargmin_cuda = CargminTcm.transpose(0,1).contiguous();  // CTcm to Ccm, stored as matrix A
-        auto BTcuda = BTcm; //BTcm stored as transpose of Bcm
-        
-        const auto M = Acuda.size(1);
-        const auto K = Acuda.size(0);
-        const auto N = BTcuda.size(0);
-        
-        auto Bcuda = BTcuda.transpose(0,1).contiguous();
-
-        // declare padded tensors
-        at::Tensor A_padded = Acuda;
-        at::Tensor Aargmax_padded = Aargmax_cuda;
-        at::Tensor Aargmin_padded = Aargmin_cuda;
-        at::Tensor B_padded = Bcuda;
-        
-        // evaluate padding to have matrix size multiple of BSM, BN, BSK
-        int M_rest = M%BSM;
-        int N_rest = N%BSN;
-        int K_rest = K%BSK;
-        int M_padding = 0;
-        int N_padding = 0;
-        int K_padding = 0;
-        int M_padded = M;
-        int N_padded = N;
-        int K_padded = K;
-        if(M_rest)
         {
-            M_padding = BSM - M_rest;
-            M_padded = M + M_padding;
-        }
-        if(N_rest)
-        {
-            N_padding = BSN - N_rest;
-            N_padded = N + N_padding;
-        }
-        if(K_rest)
-        {
-            K_padding = BSK - K_rest;
-            K_padded = K + K_padding;
-        }
-
-        // pad matrix A
-        if(M_rest || K_rest)
-        {
-            A_padded = at::pad(Acuda.unsqueeze(0),
-                            at::IntList{0, M_padding, 0, K_padding},
-                            "constant").squeeze();
-            Aargmax_padded = at::pad(Aargmax_cuda.unsqueeze(0),
-                            at::IntList{0, M_padding, 0, K_padding},
-                            "constant").squeeze();
-            Aargmin_padded = at::pad(Aargmin_cuda.unsqueeze(0),
-                            at::IntList{0, M_padding, 0, K_padding},
-                            "constant").squeeze();
-        }
-        
-        // pad matrix B
-        if(N_rest || K_rest)
-        {
-            B_padded = at::pad(Bcuda.unsqueeze(0),
-                                at::IntList{0, N_padding, 0, K_padding},
-                                "constant").squeeze();
-        }
-        
-        // generate padded output matrix
-        auto Agrad_padded = at::zeros({N_padded, M_padded}, A.options());
-        
-        const dim3 threads(RBSM,
-                        RBSN,
-                        1);    
-        const dim3 blocks(M_padded/BSM,
-                        N_padded/BSN,
-                        1);
-                        
-        switch(accblock_size)
-        {
-            case 1:
-                fullyconnected_backward_argAlike_cuda_kernel<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    B_padded.data_ptr<float>(), //transposed of the transposed
-                    Aargmax_padded.data_ptr<int>(),
-                    Aargmin_padded.data_ptr<int>(),
-                    Agrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            default:
-                throw std::invalid_argument("Invalid size for accumulation blocks");
-        }
-
-        AgradTcm.copy_(Agrad_padded.transpose(0,1).contiguous().slice(0, 0, M).slice(1, 0, N));
-    }*/
-
-    {
         // cuda-ready matrices
         auto Acuda = BTcm.transpose(0,1).contiguous(); 
         auto Bcuda = CgradTcm; 
@@ -471,85 +377,91 @@ std::vector<at::Tensor> fullyconnected_backward_cuda(
                         N_padded/BSN,
                         1);
 
-        switch(accblock_size)
+        if(!ste_weight_gradient)
         {
-            case 1:
-                fullyconnected_backward_cuda_kernel<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            case 4:
-                fullyconnected_backward_cuda_kernel_acc4<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            case 8:
-                fullyconnected_backward_cuda_kernel_acc8<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            case 16:
-                fullyconnected_backward_cuda_kernel_acc16<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            case 32:
-                fullyconnected_backward_cuda_kernel_acc32<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            case 64:
-                fullyconnected_backward_cuda_kernel_acc64<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            case 128:
-                fullyconnected_backward_cuda_kernel_acc128<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            case 256:
-                fullyconnected_backward_cuda_kernel_acc256<<<blocks, threads>>>(
-                    A_padded.data_ptr<float>(),
-                    BT_padded.data_ptr<float>(),
-                    BTargmax_padded.data_ptr<int>(),
-                    BTargmin_padded.data_ptr<int>(),
-                    Bgrad_padded.data_ptr<float>(),
-                    M_padded, K_padded, N_padded);
-                break;
-            default:
-                throw std::invalid_argument("Invalid size for accumulation blocks (backward)");
+            switch(accblock_size)
+            {
+                case 1:
+                    fullyconnected_backward_cuda_kernel<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                case 4:
+                    fullyconnected_backward_cuda_kernel_acc4<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                case 8:
+                    fullyconnected_backward_cuda_kernel_acc8<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                case 16:
+                    fullyconnected_backward_cuda_kernel_acc16<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                case 32:
+                    fullyconnected_backward_cuda_kernel_acc32<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                case 64:
+                    fullyconnected_backward_cuda_kernel_acc64<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                case 128:
+                    fullyconnected_backward_cuda_kernel_acc128<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                case 256:
+                    fullyconnected_backward_cuda_kernel_acc256<<<blocks, threads>>>(
+                        A_padded.data_ptr<float>(),
+                        BT_padded.data_ptr<float>(),
+                        BTargmax_padded.data_ptr<int>(),
+                        BTargmin_padded.data_ptr<int>(),
+                        Bgrad_padded.data_ptr<float>(),
+                        M_padded, K_padded, N_padded);
+                    break;
+                default:
+                    throw std::invalid_argument("Invalid size for accumulation blocks (backward)");
+            }
+            BgradTcm.copy_(Bgrad_padded.transpose(0,1).contiguous().slice(0, 0, M).slice(1, 0, N));
         }
-
-        BgradTcm.copy_(Bgrad_padded.transpose(0,1).contiguous().slice(0, 0, M).slice(1, 0, N));
+        else
+        {
+            BgradTcm = torch::matmul(A.transpose(0,1).contiguous(), Cgrad);
+        }
     }
 
     // transposed column-major to row-major -> identity

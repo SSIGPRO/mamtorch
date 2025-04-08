@@ -115,7 +115,8 @@ __global__ void fullyconnected_cuda_kernel_acc256(
 std::vector<at::Tensor> fullyconnected_cuda(
     at::Tensor A,
     at::Tensor B,
-    int64_t accblock_size)
+    int64_t accblock_size,
+    int64_t ste_weight_gradient)
 {   
     cudaSetDevice(A.get_device()); // set GPU number
     
