@@ -17,7 +17,7 @@ from torch.utils.cpp_extension import (
 )
 
 library_name = "mamtorch"
-version = "1.7.0"
+version = "1.8.0"
 
 
 def get_extensions():
